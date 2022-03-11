@@ -16,6 +16,7 @@ from composer.utils.object_store import ObjectStoreProviderHparams
 
 if TYPE_CHECKING:
     from composer.callbacks.grad_monitor import GradMonitor
+    from composer.callbacks.loss_monitor import LossMonitor
     from composer.callbacks.lr_monitor import LRMonitor
     from composer.callbacks.memory_monitor import MemoryMonitor
     from composer.callbacks.run_directory_uploader import RunDirectoryUploader
@@ -45,13 +46,22 @@ class CallbackHparams(hp.Hparams, abc.ABC):
         """
         pass
 
+@dataclass
+class LossMonitorHparams(CallbackHparams):
+    epochs: int = hp.optional("test", default=0)
+    num_batches: int = hp.optional("test", default=10)
+    batch_size: int = hp.optional("test", default=16)
+
+    def initialize_object(self) -> LossMonitor:
+        from composer.callbacks.loss_monitor import LossMonitor
+        return LossMonitor(epochs=self.epochs, num_batches=self.num_batches, batch_size=self.batch_size)
 
 @dataclass
 class GradMonitorHparams(CallbackHparams):
     """:class:`~composer.callbacks.grad_monitor.GradMonitor` hyperparamters.
 
     Args:
-        log_layer_grad_norms (bool, optional): 
+        log_layer_grad_norms (bool, optional):
             See :class:`~composer.callbacks.grad_monitor.GradMonitor` for documentation.
     """
 
