@@ -31,6 +31,7 @@ class develop(develop_orig):
 # From https://github.com/pypa/pip/issues/7953#issuecomment-645133255
 site.ENABLE_USER_SITE = _IS_USER
 
+
 def package_files(prefix: str, directory: str, extension: str):
     # from https://stackoverflow.com/a/36693250
     paths = []
@@ -39,6 +40,7 @@ def package_files(prefix: str, directory: str, extension: str):
             if filename.endswith(extension):
                 paths.append(os.path.relpath(os.path.join(path, filename), prefix))
     return paths
+
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -112,7 +114,7 @@ extra_deps["dev"] = [
     "sphinxcontrib-images==0.9.4",
     # need webdataset to run pyright. Including here to pass pyright.
     # TODO Remove once https://github.com/mosaicml/composer/issues/771 is fixed.
-    "webdataset==0.1.103",
+    #"webdataset==0.1.103",
 ]
 
 extra_deps["deepspeed"] = [
@@ -147,7 +149,7 @@ extra_deps["nlp"] = [
 
 extra_deps["webdataset"] = [
     # PyPI does not permit git dependencies. See https://github.com/mosaicml/composer/issues/771
-    # "webdataset @ git+https://github.com/mosaicml/webdataset.git@dev"
+    "webdataset @ git+https://github.com/mosaicml/webdataset.git@dev",
     "wurlitzer>=3.0.2,<4",
 ]
 
