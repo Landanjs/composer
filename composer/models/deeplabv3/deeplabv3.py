@@ -189,9 +189,9 @@ class ComposerDeepLabV3(ComposerModel):
         logits = self.model(x)
         return logits
 
-    def loss(self, outputs: Any, batch: BatchPair):
+    def loss(self, outputs: Any, batch: BatchPair, *args, **kwargs):
         target = batch[1]
-        loss = soft_cross_entropy(outputs, target, ignore_index=-1)  # type: ignore
+        loss = soft_cross_entropy(outputs, target, ignore_index=-1, *args, **kwargs)  # type: ignore
         return loss
 
     def metrics(self, train: bool = False):

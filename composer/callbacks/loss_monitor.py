@@ -1,6 +1,7 @@
 import torch
 
-from composer.core import Callback, Logger, State
+from composer.core import Callback, State
+from composer.loggers import Logger
 from composer.models.loss import soft_cross_entropy
 
 
@@ -18,14 +19,20 @@ class LossMonitor(Callback):
         self.num_batches = num_batches
         self.batch_size = batch_size
 
-    # def init(self, state: State, logger: Logger) -> None:
+    def init(self, state: State, logger: Logger) -> None:
+        loss_fn = state.model.loss
 
-    #     def loss(outputs, batch):
-    #         target = batch[1]
-    #         loss = soft_cross_entropy(outputs, target, ignore_index=-1, reduction='none')
-    #          return loss
+        def unreduced_loss(outputs, batch):
+            return loss_fn(outputs, batch, reduction='none')
 
-    #     state.model.loss = loss
+        state.model.loss = unreduced_loss
+
+    def after_loss(self, state: State, logger: Logger):
+        logger.log_metric(state.loss)
+
+    def before_backward(self, state: State, logger: Logger):
+        _, targets = state.batch
+        state.loss = state.loss[targets == -1].mean()
 
     def before_loss(self, state: State, logger: Logger) -> None:
         if (state.timer._epoch in self.epochs) and (state.timer._batch_in_epoch < self.num_batches):
