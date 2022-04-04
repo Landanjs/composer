@@ -31,7 +31,8 @@ class LossMonitor(Callback):
         if ((int(state.timer.epoch) % self.epoch_interval) == 0) and (state.timer._batch_in_epoch < self.num_batches):
             #data = [[loss.item()] for loss in state.loss.detach().cpu().flatten()]
             #table = wandb.Table(data=data, columns=["losses"])
-            logger.data_batch({"loss/unreduced": state.loss})
+            _, targets = state.batch
+            logger.data_batch({"loss/unreduced": wandb.Histogram(state.loss[targets != -1].detach().cpu())})
             #logger.data_batch(
             #    {"loss/unreduced": wandb.plot.histogram(table, "losses", title="Pixel-loss distribution")})
         with state.precision_context:
