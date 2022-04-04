@@ -1174,15 +1174,14 @@ class Trainer:
                 # own scaling when we call `.backward`, but this isn't in place so we still need
                 # to scale for sake of metrics after the `.backward` call.
 
+                assert self.state.loss is not None
+                self.engine.run_event(Event.AFTER_LOSS)
                 # Loss is added to losses with clone to not scale the loss for the step printout
                 # Likely need to look into the performance impact
                 if not self.deepspeed_enabled:
                     for loss in ensure_tuple(self.state.loss):
                         loss.mul_(self.state.batch_num_samples / current_batch_size)
                         total_loss += loss.detach().clone()
-
-                assert self.state.loss is not None
-                self.engine.run_event(Event.AFTER_LOSS)
 
                 # backward
                 self.engine.run_event(Event.BEFORE_BACKWARD)

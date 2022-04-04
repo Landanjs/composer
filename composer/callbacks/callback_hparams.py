@@ -52,7 +52,7 @@ class LossMonitorHparams(CallbackHparams):
 
     def initialize_object(self) -> LossMonitor:
         from composer.callbacks.loss_monitor import LossMonitor
-        return LossMonitor(epochs=self.epoch_interval, num_batches=self.num_batches, batch_size=self.batch_size)
+        return LossMonitor(epoch_interval=self.epoch_interval, num_batches=self.num_batches, batch_size=self.batch_size)
 
 
 @dataclass
