@@ -36,4 +36,4 @@ class LossMonitor(Callback):
             #    {"loss/unreduced": wandb.plot.histogram(table, "losses", title="Pixel-loss distribution")})
         with state.precision_context:
             _, targets = state.batch
-            state.loss = state.loss[targets == -1].mean()
+            state.loss = state.loss[targets != -1].mean()
