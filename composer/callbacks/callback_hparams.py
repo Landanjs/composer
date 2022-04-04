@@ -55,13 +55,13 @@ class CallbackHparams(hp.Hparams, abc.ABC):
 
 @dataclass
 class LossMonitorHparams(CallbackHparams):
-    epochs: int = hp.optional("test", default=0)
+    epoch_interval: int = hp.optional("test", default=1)
     num_batches: int = hp.optional("test", default=10)
     batch_size: int = hp.optional("test", default=16)
 
     def initialize_object(self) -> LossMonitor:
         from composer.callbacks.loss_monitor import LossMonitor
-        return LossMonitor(epochs=self.epochs, num_batches=self.num_batches, batch_size=self.batch_size)
+        return LossMonitor(epochs=self.epoch_interval, num_batches=self.num_batches, batch_size=self.batch_size)
 
 
 @dataclass
