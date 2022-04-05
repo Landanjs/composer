@@ -33,10 +33,8 @@ class LossMonitor(Callback):
         with state.precision_context:
             _, targets = state.batch
             loss = state.loss[targets != -1]
-            #print(loss.shape)
+
             vals, inds = torch.sort(loss.detach(), descending=True)
             mask = vals >= self.max_drop_value
-            mask[:int(len(mask) * 0.9)] = True
+            mask[:int(len(mask) * self.max_drop_percent)] = True
             state.loss = loss[inds[mask]].mean()
-
-            #state.loss = state.loss[targets != -1].mean()
