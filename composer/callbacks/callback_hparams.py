@@ -48,11 +48,15 @@ class CallbackHparams(hp.Hparams, abc.ABC):
 class LossMonitorHparams(CallbackHparams):
     epoch_interval: int = hp.optional("test", default=1)
     num_batches: int = hp.optional("test", default=10)
-    batch_size: int = hp.optional("test", default=16)
+    max_drop_percent: float = hp.optional("test", default=0.9)
+    max_drop_value: float = hp.optional("test", default=0.1)
 
     def initialize_object(self) -> LossMonitor:
         from composer.callbacks.loss_monitor import LossMonitor
-        return LossMonitor(epoch_interval=self.epoch_interval, num_batches=self.num_batches, batch_size=self.batch_size)
+        return LossMonitor(epoch_interval=self.epoch_interval,
+                           num_batches=self.num_batches,
+                           max_drop_percent=self.max_drop_percent,
+                           max_drop_value=self.max_drop_value)
 
 
 @dataclass

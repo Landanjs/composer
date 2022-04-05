@@ -7,17 +7,12 @@ from composer.loggers import Logger
 
 class LossMonitor(Callback):
 
-    def __init__(
-        self,
-        epoch_interval,
-        num_batches,
-        batch_size,
-    ):
+    def __init__(self, epoch_interval, num_batches, max_drop_percent, max_drop_value):
         super().__init__()
-        #self.loss_values = torch.zeros(1, num_batches, batch_size, 512, 512)
         self.epoch_interval = epoch_interval
         self.num_batches = num_batches
-        #self.batch_size = batch_size
+        self.max_drop_percent = max_drop_percent
+        self.max_drop_value = max_drop_value
 
     def init(self, state: State, logger: Logger) -> None:
         loss_fn = state.model.loss
@@ -39,7 +34,9 @@ class LossMonitor(Callback):
             _, targets = state.batch
             loss = state.loss[targets != -1]
             #print(loss.shape)
-            inds = torch.argsort(loss.detach(), descending=True)
-            state.loss = loss[inds[:int(len(inds) * 0.9)]].mean()
+            vals, inds = torch.sort(loss.detach(), descending=True)
+            mask = vals >= self.max_drop_value
+            mask[:int(len(mask) * 0.9)] = True
+            state.loss = loss[inds[mask]].mean()
 
             #state.loss = state.loss[targets != -1].mean()
