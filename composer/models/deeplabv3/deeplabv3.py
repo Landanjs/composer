@@ -75,10 +75,12 @@ def deeplabv3_builder(num_classes: int,
         resnet.model_urls[backbone_arch] = backbone_url
     backbone = getattr(resnet, backbone_arch)(pretrained=is_backbone_pretrained,
                                               replace_stride_with_dilation=[False, True, True])
-
     # specify which layers to extract activations from
     return_layers = {'layer1': 'layer1', 'layer4': 'layer4'} if use_plus else {'layer4': 'layer4'}
     backbone = _utils.IntermediateLayerGetter(backbone, return_layers=return_layers)
+
+    for param in backbone.parameters():
+        param.requires_grad = False
 
     try:
         from mmseg.models import ASPPHead, DepthwiseSeparableASPPHead  # type: ignore
