@@ -89,7 +89,9 @@ def deeplabv3_builder(num_classes: int,
              https://download.openmmlab.com/mmcv/dist/{cu_version}/{torch_version}/index.html where {cu_version} and
              {torch_version} refer to your CUDA and PyTorch versions, respectively. To install mmsegmentation, please
              run pip install mmsegmentation==0.22.0 on command-line.""")) from e
-    norm_cfg = dict(type='SyncBN', requires_grad=True)
+
+    norm_type = 'SyncBN' if sync_bn else 'BN'
+    norm_cfg = dict(type=norm_type, requires_grad=True)
     if use_plus:
         # mmseg config:
         # https://github.com/open-mmlab/mmsegmentation/blob/master/configs/_base_/models/deeplabv3plus_r50-d8.py
@@ -182,8 +184,8 @@ class ComposerDeepLabV3(ComposerModel):
         # Metrics
         self.train_miou = MIoU(self.num_classes, ignore_index=-1)
         self.train_ce = CrossEntropy(ignore_index=-1)
-        self.val_miou = MIoU(self.num_classes, ignore_index=-1)
-        self.val_ce = CrossEntropy(ignore_index=-1)
+        self.val_miou = MIoU(self.num_classes, ignore_index=0)
+        self.val_ce = CrossEntropy(ignore_index=0)
         from monai.losses import DiceLoss
         self.dice_loss = DiceLoss(softmax=True, to_onehot_y=True, batch=True)
 
