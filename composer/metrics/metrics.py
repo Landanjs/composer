@@ -40,10 +40,9 @@ class MIoU(Metric):
 
     def update(self, logits: Tensor, targets: Tensor):
         """Update the state with new predictions and targets."""
-        logits = logits[:, 1:]
-        preds = logits.argmax(dim=1)
-        targets -= 1
-        for pred, target in zip(preds, targets):
+        preds = logits[:, 1:].argmax(dim=1)
+        new_targets = targets - 1
+        for pred, target in zip(preds, new_targets):
             mask = (target != self.ignore_index)
             pred = pred[mask]
             target = target[mask]
