@@ -31,14 +31,18 @@ class MIoU(Metric):
 
     def __init__(self, num_classes: int, ignore_index: int = -1):
         super().__init__(dist_sync_on_step=True)
-        self.num_classes = num_classes
+        self.num_classes = num_classes - 1
         self.ignore_index = ignore_index
-        self.add_state("total_intersect", default=torch.zeros(num_classes, dtype=torch.float64), dist_reduce_fx="sum")
-        self.add_state("total_union", default=torch.zeros(num_classes, dtype=torch.float64), dist_reduce_fx="sum")
+        self.add_state("total_intersect",
+                       default=torch.zeros(self.num_classes, dtype=torch.float64),
+                       dist_reduce_fx="sum")
+        self.add_state("total_union", default=torch.zeros(self.num_classes, dtype=torch.float64), dist_reduce_fx="sum")
 
     def update(self, logits: Tensor, targets: Tensor):
         """Update the state with new predictions and targets."""
+        logits = logits[:, 1:]
         preds = logits.argmax(dim=1)
+        targets -= 1
         for pred, target in zip(preds, targets):
             mask = (target != self.ignore_index)
             pred = pred[mask]

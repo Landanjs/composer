@@ -184,7 +184,7 @@ class ComposerDeepLabV3(ComposerModel):
         # Metrics
         self.train_miou = MIoU(self.num_classes, ignore_index=-1)
         self.train_ce = CrossEntropy(ignore_index=-1)
-        self.val_miou = MIoU(self.num_classes, ignore_index=0)
+        self.val_miou = MIoU(self.num_classes, ignore_index=-1)
         self.val_ce = CrossEntropy(ignore_index=0)
         from monai.losses import DiceLoss
         self.dice_loss = DiceLoss(include_background=False, softmax=True, to_onehot_y=True, batch=True)
