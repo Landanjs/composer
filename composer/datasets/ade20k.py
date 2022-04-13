@@ -434,7 +434,6 @@ class ADE20kWebDatasetHparams(WebDatasetHparams):
         # Define data transformations based on data split
         if self.split == 'train':
             both_transforms = torch.nn.Sequential(
-                RandomResizePair(min_scale=1.0, max_scale=1.0, base_size=(self.base_size, self.base_size)),
                 RandomCropPair(
                     crop_size=(self.final_size, self.final_size),
                     class_max_percent=0.75,
