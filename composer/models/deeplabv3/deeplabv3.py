@@ -196,9 +196,9 @@ class ComposerDeepLabV3(ComposerModel):
 
     def loss(self, outputs: Any, batch: BatchPair):
         target = batch[1]
-        loss = 0.25 * soft_cross_entropy(outputs, target, ignore_index=0)  # type: ignore
-        target = target.unsqueeze(1)
-        loss += 0.75 * self.dice_loss(outputs, target)
+        loss = soft_cross_entropy(outputs, target, ignore_index=0)  # type: ignore
+        #target = target.unsqueeze(1)
+        #loss += 0.0 * self.dice_loss(outputs, target)
 
         return loss
 
