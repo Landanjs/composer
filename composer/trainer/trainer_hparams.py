@@ -282,7 +282,7 @@ class TrainerHparams(hp.Hparams):
     # training hparams
     grad_accum: Union[int, str] = hp.optional(textwrap.dedent("""\
         Determines the number of microbatches to split a per-gpu batch into,
-        used to compensate for low-memory-capacity devices. If set to auto, 
+        used to compensate for low-memory-capacity devices. If set to auto,
         dynamically increases grad_accum if microbatch size is too large for
         GPU. Defaults to ``1``"""),
                                               default=1)
@@ -547,8 +547,13 @@ class TrainerHparams(hp.Hparams):
                         textwrap.dedent(f"""SubsetNumBatchesWarning: When specifying eval_subset_num_batches,
                     (set to {self.eval_subset_num_batches}), evaluator.dataloader.shuffle (for Evaluator: "{evaluator.label}") should be set to False. Otherwise,
                     each evaluation epoch may load a different subset of samples."""))
-
-        optimizer = self.optimizer.initialize_object(model.parameters()) if self.optimizer is not None else None
+        param_groups = [{
+            'params': model.backbone.parameters(),
+            'lr': self.optimizer.lr * 0.1
+        }, {
+            'params': model.classifier.parameters()
+        }]
+        optimizer = self.optimizer.initialize_object(param_groups) if self.optimizer is not None else None
         schedulers = [scheduler.initialize_object() for scheduler in self.schedulers]
 
         deepspeed_config = self.deepspeed if self.deepspeed is not None else False
