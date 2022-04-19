@@ -39,6 +39,6 @@ class ChannelsLast(Algorithm):
         """Changes the memory format of the model to ``torch.channels_last``"""
         del event, logger  # unused
         # TODO: Double check model is moved to cuda with device type
-        apply_channels_last(state.model)
+        apply_channels_last(state.model.model.backbone)
 
         log.info(f'Model {state.model.__class__.__name__} changed to channels_last format.')
