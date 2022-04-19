@@ -37,8 +37,8 @@ class SimpleSegmentationModel(torch.nn.Module):
         layer1 = self.backbone.layer1(x)
         x = self.backbone.layer2(layer1)
         x = self.layer3(x)
-        layer4 = self.layer4(x)
-        logits = self.classifier((layer1, layer4))
+        x = self.layer4(x)
+        logits = self.classifier((layer1, x))
         logits = F.interpolate(logits, size=input_shape, mode="bilinear", align_corners=False)
         return logits
 
