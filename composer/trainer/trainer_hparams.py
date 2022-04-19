@@ -549,7 +549,7 @@ class TrainerHparams(hp.Hparams):
                     each evaluation epoch may load a different subset of samples."""))
         param_groups = [{
             'params': model.model.backbone.parameters(),
-            'lr': self.optimizer.lr * 0.5
+            'lr': self.optimizer.lr * (1 / 3.)
         }, {
             'params': model.model.classifier.parameters()
         }]
