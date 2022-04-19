@@ -28,8 +28,17 @@ class SimpleSegmentationModel(torch.nn.Module):
 
     def forward(self, x):
         input_shape = x.shape[-2:]
-        features = self.backbone(x)
-        logits = self.classifier(tuple(features.values()))
+
+        # Backbone
+        x = self.backbone.conv1(x)
+        x = self.backbone.bn1(x)
+        x = self.backbone.relu(x)
+        x = self.backbone.maxpool(x)
+        layer1 = self.backbone.layer1(x)
+        x = self.backbone.layer2(layer1)
+        x = self.layer3(x)
+        layer4 = self.layer4(x)
+        logits = self.classifier((layer1, layer4))
         logits = F.interpolate(logits, size=input_shape, mode="bilinear", align_corners=False)
         return logits
 
@@ -78,7 +87,7 @@ def deeplabv3_builder(num_classes: int,
 
     # specify which layers to extract activations from
     return_layers = {'layer1': 'layer1', 'layer4': 'layer4'} if use_plus else {'layer4': 'layer4'}
-    backbone = _utils.IntermediateLayerGetter(backbone, return_layers=return_layers)
+    #backbone = _utils.IntermediateLayerGetter(backbone, return_layers=return_layers)
 
     try:
         from mmseg.models import ASPPHead, DepthwiseSeparableASPPHead  # type: ignore
