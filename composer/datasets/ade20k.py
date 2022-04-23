@@ -79,6 +79,8 @@ class RandomCropPair(torch.nn.Module):
         if image.height <= self.crop_size[0] and image.width <= self.crop_size[1]:
             return image, target
 
+        self.crop_size = min(image.height, self.crop_size[0]), min(image.width, self.crop_size[1])
+
         # generate crop
         crop = transforms.RandomCrop.get_params(
             image, output_size=self.crop_size)  # type: ignore - transform typing excludes PIL.Image
@@ -434,9 +436,7 @@ class ADE20kWebDatasetHparams(WebDatasetHparams):
         # Define data transformations based on data split
         if self.split == 'train':
             both_transforms = torch.nn.Sequential(
-                RandomResizePair(min_scale=self.min_resize_scale,
-                                 max_scale=self.max_resize_scale,
-                                 base_size=(self.base_size, self.base_size)),
+                RandomResizePair(min_scale=self.min_resize_scale, max_scale=self.max_resize_scale),
                 RandomCropPair(
                     crop_size=(self.final_size, self.final_size),
                     class_max_percent=0.75,
