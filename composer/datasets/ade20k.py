@@ -79,11 +79,11 @@ class RandomCropPair(torch.nn.Module):
         if image.height <= self.crop_size[0] and image.width <= self.crop_size[1]:
             return image, target
 
-        self.crop_size = min(image.height, self.crop_size[0]), min(image.width, self.crop_size[1])
+        crop_size = min(image.height, self.crop_size[0]), min(image.width, self.crop_size[1])
 
         # generate crop
         crop = transforms.RandomCrop.get_params(
-            image, output_size=self.crop_size)  # type: ignore - transform typing excludes PIL.Image
+            image, output_size=crop_size)  # type: ignore - transform typing excludes PIL.Image
 
         if self.class_max_percent < 1.0:
             for _ in range(self.num_retry):
@@ -99,7 +99,7 @@ class RandomCropPair(torch.nn.Module):
                     break
 
                 crop = transforms.RandomCrop.get_params(
-                    image, output_size=self.crop_size)  # type: ignore - transform typing excludes PIL.Image
+                    image, output_size=crop_size)  # type: ignore - transform typing excludes PIL.Image
 
         image = TF.crop(image, *crop)  # type: ignore - transform typing excludes PIL.Image
         target = TF.crop(target, *crop)  # type: ignore - transform typing excludes PIL.Image
