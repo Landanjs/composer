@@ -43,6 +43,7 @@ def block_stochastic_bottleneck_forward(module: torch.nn.Module, drop_rate: torc
 
     def weight_reset(m):
         if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.BatchNorm2d):
+            print("resetting!")
             m.reset_parameters()
 
     module.apply(weight_reset)
