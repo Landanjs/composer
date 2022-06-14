@@ -53,6 +53,11 @@ class Initializer(StringEnum):
             if isinstance(w, torch.nn.Linear):
                 w.bias.data = torch.ones(w.bias.shape) * -torch.log(torch.tensor(w.bias.shape[0]))
 
+        def reset_parameters(w: nn.Module):
+            if isinstance(w, torch.nn.Conv2d) and isinstance(w, torch.nn.BatchNorm2d):
+                print("resetting")
+                w.reset_parameters()
+
         initializer_dict = {
             'kaiming_normal': kaiming_normal,
             'kaiming_uniform': kaiming_uniform,
