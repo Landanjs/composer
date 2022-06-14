@@ -30,8 +30,7 @@ model:
   resnet:
     model_name: resnet50
     initializers:
-      - kaiming_normal
-      - bn_uniform
+      - reset_parameters
     num_classes: 1000
 max_duration: 90ep
 train_batch_size: 2048
