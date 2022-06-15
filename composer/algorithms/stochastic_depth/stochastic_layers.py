@@ -153,4 +153,9 @@ class StochasticBottleneck(Bottleneck):
                                                   groups=module.conv2.groups,
                                                   dilation=module.conv2.dilation)
         stochastic_module.load_state_dict(module.state_dict())
+
+        def reset_parameters(m):
+            if isinstance(m, torch.nn.Conv2d) and isinstance(m, torch.nn.BatchNorm2d):
+                m.reset_parameters()
+        stochastic_module.apply(reset_parameters)
         return stochastic_module
