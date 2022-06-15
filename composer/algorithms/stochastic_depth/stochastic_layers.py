@@ -160,9 +160,9 @@ class StochasticBottleneck(Bottleneck):
         stochastic_module.bn2.reset_parameters()
         stochastic_module.conv3.reset_parameters()
         stochastic_module.bn3.reset_parameters()
-        if stochastic_module.downsample is not None:
-            stochastic_module.downsample[0].reset_parameters()
-            stochastic_module.downsample[1].reset_parameters()
+        #if stochastic_module.downsample is not None:
+        #    stochastic_module.downsample[0].reset_parameters()
+        #    stochastic_module.downsample[1].reset_parameters()
 
 
         def reset_parameters(m):
