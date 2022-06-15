@@ -70,10 +70,12 @@ class SampleStochasticBottleneck(Bottleneck):
         if drop_distribution == 'linear':
             drop_rate = ((module_index + 1) / module_count) * drop_rate
 
-        return SampleStochasticBottleneck(drop_rate=drop_rate,
-                                          inplanes=module.conv1.in_channels,
-                                          planes=module.conv3.out_channels // module.expansion,
-                                          stride=module.stride,
-                                          downsample=module.downsample,
-                                          groups=module.conv2.groups,
-                                          dilation=module.conv2.dilation)
+        stochastic_module =  SampleStochasticBottleneck(drop_rate=drop_rate,
+                                                        inplanes=module.conv1.in_channels,
+                                                        planes=module.conv3.out_channels // module.expansion,
+                                                        stride=module.stride,
+                                                        downsample=module.downsample,
+                                                        groups=module.conv2.groups,
+                                                        dilation=module.conv2.dilation)
+        stochastic_module.load_state_dict(module.state_dict())
+        return stochastic_module

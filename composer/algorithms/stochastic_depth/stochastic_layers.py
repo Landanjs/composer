@@ -86,7 +86,8 @@ class StochasticBottleneck(Bottleneck):
 
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys,
                               error_msgs):
-        self.rand_generator.set_state(state_dict[prefix + 'rng_state'])
+        if f"{prefix}rng_state" in state_dict:
+            self.rand_generator.set_state(state_dict[prefix + 'rng_state'])
         return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys,
                                              error_msgs)
 
@@ -139,15 +140,17 @@ class StochasticBottleneck(Bottleneck):
         use_same_depth_across_gpus = (drop_distribution == 'uniform')
         rand_generator = torch.Generator().manual_seed(
             rand_generator.initial_seed())  # copy the generator for each layer
-        return StochasticBottleneck(drop_rate=drop_rate,
-                                    module_id=module_index,
-                                    module_count=module_count,
-                                    use_same_depth_across_gpus=use_same_depth_across_gpus,
-                                    use_same_gpu_seed=use_same_gpu_seed,
-                                    rand_generator=rand_generator,
-                                    inplanes=module.conv1.in_channels,
-                                    planes=module.conv3.out_channels // module.expansion,
-                                    stride=module.stride,
-                                    downsample=module.downsample,
-                                    groups=module.conv2.groups,
-                                    dilation=module.conv2.dilation)
+        stochastic_module =  StochasticBottleneck(drop_rate=drop_rate,
+                                                  module_id=module_index,
+                                                  module_count=module_count,
+                                                  use_same_depth_across_gpus=use_same_depth_across_gpus,
+                                                  use_same_gpu_seed=use_same_gpu_seed,
+                                                  rand_generator=rand_generator,
+                                                  inplanes=module.conv1.in_channels,
+                                                  planes=module.conv3.out_channels // module.expansion,
+                                                  stride=module.stride,
+                                                  downsample=module.downsample,
+                                                  groups=module.conv2.groups,
+                                                  dilation=module.conv2.dilation)
+        stochastic_module.load_state_dict(module.state_dict())
+        return stochastic_module
