@@ -152,21 +152,21 @@ class StochasticBottleneck(Bottleneck):
                                                   downsample=module.downsample,
                                                   groups=module.conv2.groups,
                                                   dilation=module.conv2.dilation)
-        stochastic_module.load_state_dict(module.state_dict())
+        # stochastic_module.load_state_dict(module.state_dict())
 
-        stochastic_module.conv1.reset_parameters()
-        stochastic_module.bn1.reset_parameters()
-        stochastic_module.conv2.reset_parameters()
-        stochastic_module.bn2.reset_parameters()
-        stochastic_module.conv3.reset_parameters()
-        stochastic_module.bn3.reset_parameters()
+        # stochastic_module.conv1.reset_parameters()
+        # stochastic_module.bn1.reset_parameters()
+        # stochastic_module.conv2.reset_parameters()
+        # stochastic_module.bn2.reset_parameters()
+        # stochastic_module.conv3.reset_parameters()
+        # stochastic_module.bn3.reset_parameters()
         #if stochastic_module.downsample is not None:
         #    stochastic_module.downsample[0].reset_parameters()
         #    stochastic_module.downsample[1].reset_parameters()
 
 
-        def reset_parameters(m):
-            if isinstance(m, torch.nn.Conv2d) and isinstance(m, torch.nn.BatchNorm2d):
-                m.reset_parameters()
-        stochastic_module.apply(reset_parameters)
+        # def reset_parameters(m):
+        #     if isinstance(m, torch.nn.Conv2d) and isinstance(m, torch.nn.BatchNorm2d):
+        #         m.reset_parameters()
+        # stochastic_module.apply(reset_parameters)
         return stochastic_module
