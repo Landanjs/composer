@@ -99,4 +99,11 @@ def make_resnet_bottleneck_stochastic(module: Bottleneck, module_index: int, mod
     stochastic_func = block_stochastic_bottleneck_forward if stochastic_method == 'block' else sample_stochastic_bottleneck_forward
     module.forward = stochastic_func(module=module, drop_rate=torch.tensor(drop_rate))
 
+    module.conv1.reset_parameters()
+    module.bn1.reset_parameters()
+    module.conv2.reset_parameters()
+    module.bn2.reset_parameters()
+    module.conv3.reset_parameters()
+    module.bn3.reset_parameters()
+
     return module
