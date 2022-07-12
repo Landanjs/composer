@@ -85,14 +85,17 @@ def _one_hot(tensor: torch.Tensor, num_classes: int) -> torch.Tensor:
         num_classes += 1  # Add extra class for negative indices
 
     # Assume class dimension is inserted after the first dimension
-    class_dim = 1
-    tensor = tensor.unsqueeze(class_dim)
-    tensor_shape = list(tensor.shape)
-    tensor_shape[class_dim] = num_classes
+    #class_dim = 1
+    #tensor = tensor.unsqueeze(class_dim)
+    #tensor_shape = list(tensor.shape)
+    #tensor_shape[class_dim] = num_classes
 
     # Convert to one-hot
-    one_hot_tensor = torch.zeros(size=tensor_shape, dtype=tensor.dtype, device=tensor.device)
-    one_hot_tensor.scatter_(dim=1, index=tensor, value=1)
+    #one_hot_tensor = torch.zeros(size=tensor_shape, dtype=tensor.dtype, device=tensor.device)
+    #one_hot_tensor.scatter_(dim=1, index=tensor, value=1)
+    import torch.nn.functional as F
+    one_hot_tensor = F.one_hot(tensor, num_classes=num_classes)
+    one_hot_tensor = torch.movedim(one_hot_tensor, source=-1, destination=1).contiguous()
 
     # Remove negative indices
     if neg_indices:
