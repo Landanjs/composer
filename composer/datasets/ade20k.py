@@ -138,7 +138,8 @@ class PadToSize(torch.nn.Module):
     def forward(self, image: Image.Image):
         padding = max(self.size[0] - image.height, 0), max(self.size[1] - image.width, 0)
         padding = (padding[1] // 2, padding[0] // 2, ceil(padding[1] / 2), ceil(padding[0] / 2))
-        image = TF.pad(image, padding, fill=self.fill)  # type: ignore - transform typing does not include PIL.Image
+        image = TF.pad(image, padding,
+                       padding_mode='reflect')  # type: ignore - transform typing does not include PIL.Image
         return image
 
 
