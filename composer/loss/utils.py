@@ -95,7 +95,7 @@ def _one_hot(tensor: torch.Tensor, num_classes: int) -> torch.Tensor:
     #one_hot_tensor.scatter_(dim=1, index=tensor, value=1)
     import torch.nn.functional as F
     one_hot_tensor = F.one_hot(tensor, num_classes=num_classes)
-    one_hot_tensor = torch.movedim(one_hot_tensor, source=-1, destination=1).contiguous()
+    one_hot_tensor = torch.movedim(one_hot_tensor, source=-1, destination=1)
 
     # Remove negative indices
     if neg_indices:
