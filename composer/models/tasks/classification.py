@@ -61,8 +61,8 @@ class ComposerClassifier(ComposerModel):
                  loss_fn: Callable = soft_cross_entropy) -> None:
         super().__init__()
 
-        self.loss1_weight = torch.nn.parameter.Parameter(torch.tensor(1.0))
-        self.loss2_weight = torch.nn.parameter.Parameter(torch.tensor(1.0))
+        self.loss1_weight = torch.nn.parameter.Parameter(torch.tensor(1.41))
+        self.loss2_weight = torch.nn.parameter.Parameter(torch.tensor(0.81))
 
         # Metrics for training
         if train_metrics is None:
@@ -83,8 +83,8 @@ class ComposerClassifier(ComposerModel):
     def loss(self, outputs: Tensor, batch: Tuple[Any, Tensor], *args, **kwargs) -> Tensor:
         _, targets = batch
         loss1, loss2 = self._loss_fn(outputs, targets, *args, **kwargs)
-        print(self.loss1_weight, self.loss2_weight)
-        return [loss1 / torch.exp(self.loss1_weight), loss2 / torch.exp(self.loss2_weight), (self.loss1_weight + self.loss2_weight)]
+        print(1/(2*self.loss1_weight**2), 1/(2*self.loss2_weight**2), torch.log(1 + self.loss1_weight**2), torch.log(1 + self.loss2_weight**2))
+        return [loss1 / (2 * self.loss1_weight**2), loss2 / (2 * self.loss2_weight**2), torch.log(1 + self.loss1_weight**2), torch.log(1 + self.loss2_weight**2)]
 
     def metrics(self, train: bool = False) -> Union[Metric, MetricCollection]:
         return self.train_metrics if train else self.val_metrics
