@@ -135,7 +135,7 @@ def deeplabv3(num_classes: int,
                 model.apply(initializer_fn)
 
     if sync_bn:
-        world_size = list(range(32))
+        world_size = list(range(dist.get_world_size()))
         num_ranks_to_sync = 4
         r = [
             world_size[(i * num_ranks_to_sync):((i + 1) * num_ranks_to_sync)]
