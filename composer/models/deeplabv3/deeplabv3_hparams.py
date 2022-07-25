@@ -39,6 +39,7 @@ class DeepLabV3Hparams(ModelHparams):
         "Url to download model weights from. If blank (default), will download from PyTorch's url.", default='')
     use_plus: bool = hp.optional('If true (default), use DeepLabv3+ head instead of DeepLabv3.', default=True)
     sync_bn: bool = hp.optional('If true, use SyncBatchNorm to sync batch norm statistics across GPUs.', default=True)
+    ranks_to_sync: int = hp.optional('The number of ranks to sync batch normalization statistics across.', default=-1)
     ignore_index: int = hp.optional('Class label to ignore when calculating the loss and other metrics.', default=-1)
     cross_entropy_weight: float = hp.optional('Weight to scale the cross entropy loss.', default=1.0)
     dice_weight: float = hp.optional('Weight to scale the dice loss.', default=0.0)
@@ -71,6 +72,7 @@ class DeepLabV3Hparams(ModelHparams):
                                   backbone_url=self.backbone_url,
                                   use_plus=self.use_plus,
                                   sync_bn=self.sync_bn,
+                                  ranks_to_sync=self.ranks_to_sync,
                                   ignore_index=self.ignore_index,
                                   cross_entropy_weight=self.cross_entropy_weight,
                                   dice_weight=self.dice_weight,

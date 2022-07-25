@@ -45,6 +45,7 @@ def deeplabv3(num_classes: int,
               is_backbone_pretrained: bool = True,
               backbone_url: str = '',
               sync_bn: bool = True,
+              ranks_to_sync: int = -1,
               use_plus: bool = True,
               initializers: Sequence[Initializer] = ()):
     """Helper function to build a mmsegmentation DeepLabV3 model.
@@ -135,15 +136,16 @@ def deeplabv3(num_classes: int,
                 model.apply(initializer_fn)
 
     if sync_bn:
-        world_size = list(range(dist.get_world_size()))
-        num_ranks_to_sync = 4
-        r = [
-            world_size[(i * num_ranks_to_sync):((i + 1) * num_ranks_to_sync)]
-            for i in range(len(world_size) // num_ranks_to_sync)
-        ]
-        process_groups = [torch.distributed.new_group(pids) for pids in r]
-        process_group = process_groups[dist.get_global_rank() // num_ranks_to_sync]
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model, process_group=process_group)
+        if ranks_to_sync > 0:
+            world_size = dist.get_world_size()
+            ranks = list(range(world_size))
+            sync_groups = list(range(world_size // ranks_to_sync))
+            rank_groups = [ranks[(i * ranks_to_sync):((i + 1) * ranks_to_sync)] for i in sync_groups]
+            process_groups = [torch.distributed.new_group(pids) for pids in rank_groups]
+            process_group = process_groups[dist.get_global_rank() // ranks_to_sync]
+            model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model, process_group=process_group)
+        else:
+            model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     return model
 
@@ -153,6 +155,7 @@ def composer_deeplabv3(num_classes: int,
                        is_backbone_pretrained: bool = True,
                        backbone_url: str = '',
                        sync_bn: bool = True,
+                       ranks_to_sync: int = -1,
                        use_plus: bool = True,
                        ignore_index: int = -1,
                        cross_entropy_weight: float = 1.0,
@@ -200,6 +203,7 @@ def composer_deeplabv3(num_classes: int,
                       use_plus=use_plus,
                       num_classes=num_classes,
                       sync_bn=sync_bn,
+                      ranks_to_sync=ranks_to_sync,
                       initializers=initializers)
 
     train_metrics = MetricCollection(
