@@ -102,8 +102,7 @@ def deeplabv3(num_classes: int,
     if sync_bn and world_size == 1:
         warnings.warn('sync_bn was true, but only one process is present for training. sync_bn will be ignored.')
 
-    norm_type = 'SyncBN' if sync_bn and world_size > 1 else 'BN'
-    norm_cfg = {'type': norm_type, 'requires_grad': True}
+    norm_cfg = {'type': 'BN', 'requires_grad': True}
     if use_plus:
         # mmseg config:
         # https://github.com/open-mmlab/mmsegmentation/blob/master/configs/_base_/models/deeplabv3plus_r50-d8.py
