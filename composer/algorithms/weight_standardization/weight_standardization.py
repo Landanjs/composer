@@ -26,7 +26,8 @@ class WeightStandardizer(nn.Module):
 def apply_weight_standardization(model: torch.nn.Module):
     count = 0
     for module in model.modules():
-        if (isinstance(module, nn.Conv1d) or isinstance(module, nn.Conv2d) or isinstance(module, nn.Conv3d)):
+        if (isinstance(module, nn.Conv1d) or isinstance(module, nn.Conv2d) or
+                isinstance(module, nn.Conv3d)) and count < 100:
 
             parametrize.register_parametrization(module, 'weight', WeightStandardizer())
             count += 1
