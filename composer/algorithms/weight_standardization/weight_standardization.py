@@ -27,7 +27,7 @@ def apply_weight_standardization(model: torch.nn.Module):
     count = 0
     for module in model.modules():
         if (isinstance(module, nn.Conv1d) or isinstance(module, nn.Conv2d) or
-                isinstance(module, nn.Conv3d)) and (module.out_channels != 150):
+                isinstance(module, nn.Conv3d)) and (module.out_channels != 150) and (module.groups == 1):
 
             parametrize.register_parametrization(module, 'weight', WeightStandardizer())
             count += 1
