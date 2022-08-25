@@ -127,7 +127,12 @@ class CopyPaste(Algorithm):
             Default:``25``.
         padding_factor (float, optional): The source sample is padded by this
             ratio before applying large scale jittering to it. Default: ``0.5``.
-        jitter_scale (Tuple[float, float], optional): Determines the scale used
+        jitter_scale_min (float, optional): Determines the scale used
+            in the large scale jittering of the source instance. Specifies the
+            lower and upper bounds for the random area of the crop, before
+            resizing. The scale is defined with respect to the area of the
+            original image. Default: ``(0.01, 0.99)``.
+        jitter_scale_max (float, optional): Determines the scale used
             in the large scale jittering of the source instance. Specifies the
             lower and upper bounds for the random area of the crop, before
             resizing. The scale is defined with respect to the area of the
