@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 import logging
+import random
 from typing import Any, Callable, Optional, Tuple, Union
 
-from numpy.random import default_rng
 import numpy as np
-import random
 import torch
 import torchvision.transforms as T
+from numpy.random import default_rng
 
 from composer.core import Algorithm, Event, State
 from composer.loggers import Logger
@@ -173,7 +173,8 @@ class CopyPaste(Algorithm):
         max_copied_instances=None,
         area_threshold=25,
         padding_factor=0.5,
-        jitter_scale=(0.01, 0.99),
+        jitter_scale_min=0.01,
+        jitter_scale_max=0.99,
         jitter_ratio=(1.0, 1.0),
         p_flip=0.9,
         bg_color=-1,
@@ -187,7 +188,7 @@ class CopyPaste(Algorithm):
             "max_copied_instances": max_copied_instances,
             "area_threshold": area_threshold,
             "padding_factor": padding_factor,
-            "jitter_scale": jitter_scale,
+            "jitter_scale": (jitter_scale_min, jitter_scale_max),
             "jitter_ratio": jitter_ratio,
             "p_flip": p_flip,
             "bg_color": bg_color
