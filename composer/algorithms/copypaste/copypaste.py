@@ -7,12 +7,11 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Tuple, Union
 
 import numpy as np
 import torch
 import torchvision.transforms as T
-from numpy.random import default_rng
 
 from composer.core import Algorithm, Event, State
 from composer.loggers import Logger
@@ -82,27 +81,38 @@ def copypaste_batch(images, masks, configs):
     assert images.size(dim=0) == masks.size(dim=0), "Number of images and masks in the batch do not match!"
     batch_size = images.size(dim=0)
 
-    while batch_idx < batch_size:
-        [i, j] = np.random.randint(0, high=batch_size, size=2)
+    rand_samples = np.random.rand(batch_size)
+    for batch_idx, sample in enumerate(rand_samples):
+        target_img = images[batch_idx]
+        target_mask = masks[batch_idx]
+        if sample < configs["p"]:
+            # Sample the source image to use, excluding the current batch
+            batch_indices = np.arange(batch_size)
+            batch_indices = np.delete(batch_indices, batch_idx)
+            src_idx = np.random.choice(batch_indices)
 
-        num_instances = _count_instances(masks[i])
-        num_copied_instances = random.randint(0, num_instances)
-        if configs["max_copied_instances"] is not None:
-            num_copied_instances = min(num_copied_instances, configs["max_copied_instances"])
+            # Count the number of instances in the mask, ignoring the background class
+            instance_ids = torch.unique(masks[src_idx])
+            instance_ids = instance_ids[instance_ids != configs['bg_color']]  # Remove background id
+            num_instances = len(instance_ids)
 
-        src_instance_ids = _get_instance_ids(masks[i], num_copied_instances, configs["bg_color"])
+            max_copied_instances = num_instances
+            if configs["max_copied_instances"] is not None:
+                max_copied_instances = min(max_copied_instances, configs["max_copied_instances"])
 
-        trg_image = images[j]
-        trg_mask = masks[j]
+            # Sample how many instances to copy-paste
+            num_copied_instances = random.randint(0, max_copied_instances)
 
-        if random.uniform(0, 1) < configs["p"]:
+            # Sample `num_copied_instances` `instance_ids` to copy-paste (without replacement)
+            rand_indices = torch.randperm(num_instances)[:num_copied_instances]
+            src_instance_ids = instance_ids[rand_indices]
+
+            # Copy-paste each instance onto the target image and mask
             for src_instance_id in src_instance_ids:
-                trg_image, trg_mask = _copypaste_instance(images[i], masks[i], trg_image, trg_mask, src_instance_id,
-                                                          configs)
-
-        out_images[batch_idx] = trg_image
-        out_masks[batch_idx] = trg_mask
-        batch_idx += 1
+                target_img, target_mask = _copypaste_instance(images[src_idx], masks[src_idx], target_img, target_mask,
+                                                              src_instance_id, configs)
+        out_images[batch_idx] = target_img
+        out_masks[batch_idx] = target_mask
 
     return out_images, out_masks
 
@@ -341,48 +351,6 @@ def _ignore_instance(mask, configs):
             mask_area += count
 
     return bool(int(mask_area) < configs["area_threshold"])
-
-
-def _count_instances(input_tensor):
-    """Counts the total number of non-background class IDs in a mask tensor.
-
-    Args:
-        input_tensor (torch.Tensore): Tensor of mask with shape ``(H, W)``.
-
-
-    Returns:
-        count (int): Number of non-background class IDs.
-    """
-    unique_class_ids = torch.unique(input_tensor)
-
-    return (len(unique_class_ids) - 1)
-
-
-def _get_instance_ids(input_tensor, num_instances, filtered_id):
-    """Generates a list of randomly selected (without replacement)
-    non-background class IDs in a mask tensor.
-
-    Args:
-        input_tensor (torch.Tensore): Tensor of mask with shape ``(H, W)``.
-        num_instances (int): Number of instances to be randomly selected from
-            ``input_tensor``.
-        filtered_id (int): Class ID of the background class
-
-
-    Returns:
-        indices (sequence): a list of randomly selected (without replacement)
-            non-background class IDs in a mask tensor.
-    """
-
-    instance_ids = torch.unique(input_tensor)
-
-    npy = instance_ids.cpu().numpy()
-    npy = np.delete(npy, np.where(npy == filtered_id))
-
-    rng = default_rng()
-    indices = rng.choice(len(npy), size=num_instances, replace=False)
-
-    return npy[indices]
 
 
 def _parse_mask_by_id(mask, idx, background_color=-1):
