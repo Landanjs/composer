@@ -43,7 +43,7 @@ def copypaste_batch(images, masks, configs):
 
     Args:
         input (torch.Tensor): input tensor of shape ``(N, C, H, W)``.
-        target (torch.Tensor): target tensor of shape ``(N, H, W)``.
+        masks (torch.Tensor): target tensor of shape ``(N, H, W)``.
         configs (dict): dictionary containing the configurable hyperparameters.
 
     Returns:
@@ -81,15 +81,19 @@ def copypaste_batch(images, masks, configs):
     assert images.size(dim=0) == masks.size(dim=0), "Number of images and masks in the batch do not match!"
     batch_size = images.size(dim=0)
 
+    # Only samples with instances can be source images
+    src_indices = [i for i in range(batch_size) if (torch.unique(masks[i]) != configs['bg_color']).sum()]
+    src_indices = np.array(src_indices)
+
+    # Iterate through all samples and maybe apply copy-paste
     rand_samples = np.random.rand(batch_size)
     for batch_idx, sample in enumerate(rand_samples):
         target_img = images[batch_idx]
         target_mask = masks[batch_idx]
         if sample < configs["p"]:
             # Sample the source image to use, excluding the current batch
-            batch_indices = np.arange(batch_size)
-            batch_indices = np.delete(batch_indices, batch_idx)
-            src_idx = np.random.choice(batch_indices)
+            current_src_indices = src_indices[src_indices != batch_idx]
+            src_idx = np.random.choice(current_src_indices)
 
             # Count the number of instances in the mask, ignoring the background class
             instance_ids = torch.unique(masks[src_idx])
@@ -99,18 +103,18 @@ def copypaste_batch(images, masks, configs):
             max_copied_instances = num_instances
             if configs["max_copied_instances"] is not None:
                 max_copied_instances = min(max_copied_instances, configs["max_copied_instances"])
-            if max_copied_instances > 0:
-                # Sample how many instances to copy-paste
-                num_copied_instances = random.randint(1, max_copied_instances)
 
-                # Sample `num_copied_instances` `instance_ids` to copy-paste (without replacement)
-                rand_indices = torch.randperm(num_instances)[:num_copied_instances]
-                src_instance_ids = instance_ids[rand_indices]
+            # Sample how many instances to copy-paste
+            num_copied_instances = random.randint(1, max_copied_instances)
 
-                # Copy-paste each instance onto the target image and mask
-                for src_instance_id in src_instance_ids:
-                    target_img, target_mask = _copypaste_instance(images[src_idx], masks[src_idx], target_img,
-                                                                  target_mask, src_instance_id, configs)
+            # Sample `num_copied_instances` `instance_ids` to copy-paste (without replacement)
+            rand_indices = torch.randperm(num_instances)[:num_copied_instances]
+            src_instance_ids = instance_ids[rand_indices]
+
+            # Copy-paste each instance onto the target image and mask
+            for src_instance_id in src_instance_ids:
+                target_img, target_mask = _copypaste_instance(images[src_idx], masks[src_idx], target_img, target_mask,
+                                                              src_instance_id, configs)
         out_images[batch_idx] = target_img
         out_masks[batch_idx] = target_mask
 
@@ -248,7 +252,6 @@ def _copypaste_instance(src_image, src_mask, trg_image, trg_mask, src_instance_i
 
     src_instance_mask = _parse_mask_by_id(src_mask, src_instance_id, bg_color)
     src_instance = torch.where(src_instance_mask == bg_color, zero_tensor, src_image)
-
     [src_instance,
      src_instance_mask] = _jitter_instance([src_instance, torch.unsqueeze(src_instance_mask, dim=0)], configs)
     src_instance_mask = torch.squeeze(src_instance_mask)
