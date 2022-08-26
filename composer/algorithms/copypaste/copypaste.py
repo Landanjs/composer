@@ -20,12 +20,10 @@ log = logging.getLogger(__name__)
 
 __all__ = ['CopyPaste', 'copypaste_batch']
 
-_MAX_TORCH_SEED = 0xffff_ffff_ffff_ffff
-
 
 def copypaste_batch(images, masks, configs):
     """
-    copy-paste is an augmentation method. Two images are randomly chosen (with
+    copy-paste is a data augmentation method. Two images are randomly chosen (with
     replacement) from a given batch of images and their corresponding masks, i.e.,
     the source and the target target. A number of instances from the source are
     selected to be copied into the target. The number of copied instanes is always
@@ -311,8 +309,8 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                              fill=0)
             break
 
-    is_flip = np.random.rand(configs['p_flip'])
-    if is_flip:
+    is_flip = np.random.rand(1)
+    if is_flip < configs['p_flip']:
         T.functional.hflip(jitter_img)
         T.functional.hflip(jitter_mask)
 
