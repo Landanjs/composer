@@ -300,7 +300,7 @@ def _jitter_instance(img, mask, configs, n_retry=10):
 
         instance_area = (jitter_mask != configs['bg_color']).sum()
         if instance_area >= configs["area_threshold"]:
-            jitter_img = T.functional.affine(mask,
+            jitter_img = T.functional.affine(img,
                                              angle=angle,
                                              translate=translate,
                                              scale=scale,
