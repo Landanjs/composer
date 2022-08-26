@@ -85,14 +85,20 @@ def copypaste_batch(images, masks, configs):
     src_indices = [i for i in range(batch_size) if (torch.unique(masks[i]) != configs['bg_color']).sum()]
     src_indices = np.array(src_indices)
 
+    # Exit if there are no samples with instances
+    if len(src_indices) == 0:
+        return images, masks
+
     # Iterate through all samples and maybe apply copy-paste
     rand_samples = np.random.rand(batch_size)
     for batch_idx, sample in enumerate(rand_samples):
         target_img = images[batch_idx]
         target_mask = masks[batch_idx]
-        if sample < configs["p"]:
+
+        # Array of available source samples based on the current batch
+        current_src_indices = src_indices[src_indices != batch_idx]
+        if sample < configs["p"] and len(current_src_indices) > 0:
             # Sample the source image to use, excluding the current batch
-            current_src_indices = src_indices[src_indices != batch_idx]
             src_idx = np.random.choice(current_src_indices)
 
             # Count the number of instances in the mask, ignoring the background class
@@ -250,55 +256,20 @@ def _copypaste_instance(src_image, src_mask, trg_image, trg_mask, src_instance_i
     zero_tensor = torch.zeros(1, dtype=src_image.dtype, device=src_image.device)
     bg_color = configs["bg_color"]
 
-    src_instance_mask = _parse_mask_by_id(src_mask, src_instance_id, bg_color)
-    src_instance = torch.where(src_instance_mask == bg_color, zero_tensor, src_image)
-    [src_instance,
-     src_instance_mask] = _jitter_instance([src_instance, torch.unsqueeze(src_instance_mask, dim=0)], configs)
-    src_instance_mask = torch.squeeze(src_instance_mask)
+    # Extract the instance from the mask and the image
+    src_instance_mask = (src_mask == src_instance_id, src_instance_id, bg_color)
+    src_instance = torch.where(src_mask == src_instance_id, src_image, zero_tensor)
 
-    trg_image = torch.where(src_instance_mask == bg_color, trg_image, zero_tensor)
-    trg_image += src_instance
-    trg_mask = torch.where(src_instance_mask == bg_color, trg_mask, src_instance_mask)
+    [src_instance, src_instance_mask] = _jitter_instance(src_instance, src_instance_mask.unsqueeze(0), configs)
+    src_instance_mask = src_instance_mask.squeeze(0)
+
+    trg_image = torch.where(src_instance_mask == src_instance_id, src_instance, trg_image)
+    trg_mask = torch.where(src_instance_mask == src_instance, src_instance_mask, trg_mask)
 
     return trg_image, trg_mask
 
 
-def _get_jitter_transformations(is_mask, padding_size, crop_size, configs):
-    """A wrapper around ``torchvision.transforms.transforms``. Generates a Torch transformation object to be used in large scale jittering.
-
-    Args:
-        is_mask (int): Identifier that indicates if the transformation is used on
-            a mask or an image.
-        padding_size (int or sequence): Padding on each border. If a single int is
-            provided this is used to pad all borders. If sequence of length 2 is provided this is the padding on left/right and top/bottom respectively.
-        size (int or sequence): Expected output size of the crop, for each edge. If
-            size is an int instead of sequence like (h, w), a square output size
-            ``(size, size)`` is made. If provided a sequence of length 1, it will
-            be interpreted as (size[0], size[0]).
-        configs (dict): Configurable hyperparameters.
-
-
-    Returns:
-        trns (torchvision.transforms.transforms): An object of trochvision
-            transformations.
-    """
-    fill = 0
-    if is_mask:
-        fill = configs["bg_color"]
-
-    trns = T.Compose([
-        T.Pad(padding=padding_size, fill=fill, padding_mode="constant"),
-        T.RandomResizedCrop(size=crop_size,
-                            scale=configs["jitter_scale"],
-                            ratio=configs["jitter_ratio"],
-                            interpolation=T.InterpolationMode.NEAREST),
-        T.RandomHorizontalFlip(p=configs["p_flip"])
-    ])
-
-    return trns
-
-
-def _jitter_instance(arrs, configs):
+def _jitter_instance(img, mask, configs, n_retry=10):
     """Applies transformations on a tuple of image and mask.
 
     Args:
@@ -312,63 +283,36 @@ def _jitter_instance(arrs, configs):
             tensors. Element 0 always contains the image and element 1 contains the
             mask.
     """
+    jitter_img, jitter_mask = img, mask
+    for _ in range(n_retry):
+        angle, translate, scale, shear = T.RandomAffine.get_params(degrees=0,
+                                                                   translate=(configs['padding_factor'],
+                                                                              configs['padding_factor']),
+                                                                   scale=configs['jitter_scale'],
+                                                                   img_size=img.shape[1:])
 
-    out = []
-    jitter_seed = random.randint(0, _MAX_TORCH_SEED)
+        jitter_mask = T.functional.affine(mask,
+                                          angle=angle,
+                                          translate=translate,
+                                          scale=scale,
+                                          shear=shear,
+                                          interpolation=T.interpolationMode.NEAREST,
+                                          fill=configs['bg_color'])
 
-    padding_size = (int(configs["padding_factor"] * arrs[0].size(dim=1)),
-                    int(configs["padding_factor"] * arrs[0].size(dim=2)))
-    crop_size = (arrs[0].size(dim=1), arrs[0].size(dim=2))
+        instance_area = (jitter_mask != configs['bg_color']).sum()
+        if instance_area >= configs["area_threshold"]:
+            jitter_img = T.functional.affine(mask,
+                                             angle=angle,
+                                             translate=translate,
+                                             scale=scale,
+                                             shear=shear,
+                                             interpolation=T.interpolationMode.BILINEAR,
+                                             fill=0)
+            break
 
-    for idx, arr in enumerate(arrs):
-        torch.random.manual_seed(jitter_seed)
-        random.seed(jitter_seed)
-        trns = _get_jitter_transformations(idx, padding_size, crop_size, configs)
-        transformed = trns(arr)
+    is_flip = np.random.rand(configs['p_flip'])
+    if is_flip:
+        T.functional.hflip(jitter_img)
+        T.functional.hflip(jitter_mask)
 
-        out.append(transformed)
-
-    if _ignore_instance(out[-1], configs):
-        return arrs
-
-    return out
-
-
-def _ignore_instance(mask, configs):
-    """Compares the area of the mask with a threshold determined by the parameters
-    in ``configs``.
-
-    Args:
-        mask (torch.Tensore): Tensor of the instance mask.
-        configs (dict): Configurable hyperparameters.
-
-
-    Returns:
-        ignore (bool): A boolean flag determining if the mask must be ignored or not.
-    """
-    uniques = torch.unique(mask, return_counts=True)
-
-    mask_area = 0
-    for i, count in enumerate(uniques[1]):
-        if uniques[0][i] != configs["bg_color"]:
-            mask_area += count
-
-    return bool(int(mask_area) < configs["area_threshold"])
-
-
-def _parse_mask_by_id(mask, idx, background_color=-1):
-    """Extracts an instance indicated by ``idx`` from an input mask tensor.
-
-    Args:
-        mask (torch.Tensore): Tensor of mask with shape ``(H, W)``.
-        idx (int): Class ID of the desired instance to be extracted from ``mask``
-        background_color (int): Class ID of the background class.
-
-
-    Returns:
-        parsed_mask (torch.Tensore): Tensor of mask with shape ``(H, W)`` that only
-            contains the instance indicated by ``idx``.
-    """
-    parsed_mask = torch.where(mask == idx, idx, background_color)
-
-    return parsed_mask
+    return jitter_img, jitter_mask
