@@ -99,18 +99,18 @@ def copypaste_batch(images, masks, configs):
             max_copied_instances = num_instances
             if configs["max_copied_instances"] is not None:
                 max_copied_instances = min(max_copied_instances, configs["max_copied_instances"])
+            if max_copied_instances > 0:
+                # Sample how many instances to copy-paste
+                num_copied_instances = random.randint(1, max_copied_instances)
 
-            # Sample how many instances to copy-paste
-            num_copied_instances = random.randint(0, max_copied_instances)
+                # Sample `num_copied_instances` `instance_ids` to copy-paste (without replacement)
+                rand_indices = torch.randperm(num_instances)[:num_copied_instances]
+                src_instance_ids = instance_ids[rand_indices]
 
-            # Sample `num_copied_instances` `instance_ids` to copy-paste (without replacement)
-            rand_indices = torch.randperm(num_instances)[:num_copied_instances]
-            src_instance_ids = instance_ids[rand_indices]
-
-            # Copy-paste each instance onto the target image and mask
-            for src_instance_id in src_instance_ids:
-                target_img, target_mask = _copypaste_instance(images[src_idx], masks[src_idx], target_img, target_mask,
-                                                              src_instance_id, configs)
+                # Copy-paste each instance onto the target image and mask
+                for src_instance_id in src_instance_ids:
+                    target_img, target_mask = _copypaste_instance(images[src_idx], masks[src_idx], target_img,
+                                                                  target_mask, src_instance_id, configs)
         out_images[batch_idx] = target_img
         out_masks[batch_idx] = target_mask
 
