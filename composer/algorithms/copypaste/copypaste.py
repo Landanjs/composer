@@ -289,7 +289,8 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                                                    translate=(configs['padding_factor'],
                                                                               configs['padding_factor']),
                                                                    scale_ranges=configs['jitter_scale'],
-                                                                   img_size=img.shape[1:])
+                                                                   img_size=img.shape[1:],
+                                                                   shears=None)
 
         jitter_mask = T.functional.affine(mask,
                                           angle=angle,
