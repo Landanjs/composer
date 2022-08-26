@@ -257,7 +257,7 @@ def _copypaste_instance(src_image, src_mask, trg_image, trg_mask, src_instance_i
     bg_color = configs["bg_color"]
 
     # Extract the instance from the mask and the image
-    src_instance_mask = (src_mask == src_instance_id, src_instance_id, bg_color)
+    src_instance_mask = torch.where(src_mask == src_instance_id, src_instance_id, bg_color)
     src_instance = torch.where(src_mask == src_instance_id, src_image, zero_tensor)
 
     [src_instance, src_instance_mask] = _jitter_instance(src_instance, src_instance_mask.unsqueeze(0), configs)
