@@ -297,7 +297,7 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                           translate=translate,
                                           scale=scale,
                                           shear=shear,
-                                          interpolation=T.interpolationMode.NEAREST,
+                                          interpolation=T.functional.InterpolationMode.NEAREST,
                                           fill=configs['bg_color'])
 
         instance_area = (jitter_mask != configs['bg_color']).sum()
@@ -307,7 +307,7 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                              translate=translate,
                                              scale=scale,
                                              shear=shear,
-                                             interpolation=T.interpolationMode.BILINEAR,
+                                             interpolation=T.functional.InterpolationMode.BILINEAR,
                                              fill=0)
             break
 
