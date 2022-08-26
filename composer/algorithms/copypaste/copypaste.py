@@ -262,7 +262,7 @@ def _copypaste_instance(src_image, src_mask, trg_image, trg_mask, src_instance_i
     src_instance_mask = src_instance_mask.squeeze(0)
 
     trg_image = torch.where(src_instance_mask == src_instance_id, src_instance, trg_image)
-    trg_mask = torch.where(src_instance_mask == src_instance, src_instance_mask, trg_mask)
+    trg_mask = torch.where(src_instance_mask == src_instance_id, src_instance_mask, trg_mask)
 
     return trg_image, trg_mask
 
