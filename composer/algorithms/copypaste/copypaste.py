@@ -139,10 +139,11 @@ class CopyPaste(Algorithm):
             total number of instances in the source sample. If it is set to
             ``None``, the total number of instances in the source sample is set to
             be the limit. Default: ``None``.
-        area_threshold (int, optional): Minimum area (in pixels) of an augmented
+        min_instance_area (int, optional): Minimum area (in pixels) of an augmented
             instance to be considered a valid instance. Augmented instances with
             an area smaller than this threshold are removed from the sample.
             Default:``25``.
+        max_instance_area (float, optional): Something Something. Default:``0.5``.
         padding_factor (float, optional): The source sample is padded by this
             ratio before applying large scale jittering to it. Default: ``0.5``.
         jitter_scale_min (float, optional): Determines the scale used
@@ -194,7 +195,8 @@ class CopyPaste(Algorithm):
         self,
         p=0.5,
         max_copied_instances=None,
-        area_threshold=25,
+        min_instance_area=0.01,
+        max_instance_area=0.5,
         padding_factor=0.5,
         jitter_scale_min=0.01,
         jitter_scale_max=0.99,
@@ -209,7 +211,8 @@ class CopyPaste(Algorithm):
         self.configs = {
             "p": p,
             "max_copied_instances": max_copied_instances,
-            "area_threshold": area_threshold,
+            "min_instance_area": min_instance_area,
+            'max_instance_area': max_instance_area,
             "padding_factor": padding_factor,
             "jitter_scale": (jitter_scale_min, jitter_scale_max),
             "jitter_ratio": jitter_ratio,
@@ -261,8 +264,12 @@ def _copypaste_instance(src_image, src_mask, trg_image, trg_mask, src_instance_i
     [src_instance, src_instance_mask] = _jitter_instance(src_instance, src_instance_mask.unsqueeze(0), configs)
     src_instance_mask = src_instance_mask.squeeze(0)
 
-    trg_image = torch.where(src_instance_mask == src_instance_id, src_instance, trg_image)
-    trg_mask = torch.where(src_instance_mask == src_instance_id, src_instance_mask, trg_mask)
+    # Only paste the instance if it meets the pixel area requirements
+    instance_area = (src_instance_mask != configs['bg_color']).sum() / (src_instance_mask.shape[0] *
+                                                                        src_instance_mask.shape[1])
+    if instance_area > configs['min_instance_area'] and instance_area < configs['max_instance_area']:
+        trg_image = torch.where(src_instance_mask == src_instance_id, src_instance, trg_image)
+        trg_mask = torch.where(src_instance_mask == src_instance_id, src_instance_mask, trg_mask)
 
     return trg_image, trg_mask
 
@@ -289,7 +296,7 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                                                    scale_ranges=configs['jitter_scale'],
                                                                    img_size=img.shape[1:],
                                                                    shears=None)
-
+        # Attempt to apply the augmentation
         jitter_mask = T.functional.affine(mask,
                                           angle=angle,
                                           translate=translate,
@@ -298,8 +305,9 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                           interpolation=T.functional.InterpolationMode.NEAREST,
                                           fill=configs['bg_color'])
 
-        instance_area = (jitter_mask != configs['bg_color']).sum()
-        if instance_area >= configs["area_threshold"]:
+        # Check if the jittered instance meets the instance area restrictions
+        instance_area = (jitter_mask != configs['bg_color']).sum() / (jitter_mask.shape[0] * jitter_mask.shape[1])
+        if instance_area > configs["min_instance_area"] and instance_area < configs["max_instance_area"]:
             jitter_img = T.functional.affine(img,
                                              angle=angle,
                                              translate=translate,
@@ -308,6 +316,9 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                              interpolation=T.functional.InterpolationMode.BILINEAR,
                                              fill=0)
             break
+        else:
+            # Reset jitter_img and jitter_mask if the jittered instance does not meet area restrictions
+            jitter_img, jitter_mask = img, mask
 
     is_flip = np.random.rand(1)
     if is_flip < configs['p_flip']:
