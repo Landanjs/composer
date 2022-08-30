@@ -66,7 +66,7 @@ def copypaste_batch(images, masks, configs):
                 "jitter_scale": (0.01, 0.99),
                 "jitter_ratio": (1.0, 1.0),
                 "p_flip": 1.0,
-                "bg_color": 0
+                "bg_label": 0
             }
             X = torch.randn(N, C, H, W)
             y = torch.randint(num_classes, size=(N, H, W))
@@ -80,7 +80,7 @@ def copypaste_batch(images, masks, configs):
     batch_size = images.size(dim=0)
 
     # Only samples with instances can be source images
-    src_indices = [i for i in range(batch_size) if (torch.unique(masks[i]) != configs['bg_color']).sum()]
+    src_indices = [i for i in range(batch_size) if (torch.unique(masks[i]) != configs['bg_label']).sum()]
     src_indices = np.array(src_indices)
 
     # Exit if there are no samples with instances
@@ -101,7 +101,7 @@ def copypaste_batch(images, masks, configs):
 
             # Count the number of instances in the mask, ignoring the background class
             instance_ids = torch.unique(masks[src_idx])
-            instance_ids = instance_ids[instance_ids != configs['bg_color']]  # Remove background id
+            instance_ids = instance_ids[instance_ids != configs['bg_label']]  # Remove background id
             num_instances = len(instance_ids)
 
             max_copied_instances = num_instances
@@ -181,7 +181,7 @@ class CopyPaste(Algorithm):
         min_scale=0.01,
         max_scale=0.99,
         p_flip=0.9,
-        bg_color=-1,
+        bg_label=-1,
         input_key: Union[str, int, Tuple[Callable, Callable], Any] = 0,
         target_key: Union[str, int, Tuple[Callable, Callable], Any] = 1,
     ):
@@ -195,7 +195,7 @@ class CopyPaste(Algorithm):
             "max_translation": max_translation,
             "jitter_scale": (min_scale, max_scale),
             "p_flip": p_flip,
-            "bg_color": bg_color
+            "bg_label": bg_label
         }
 
     def match(self, event: Event, state: State) -> bool:
@@ -233,17 +233,17 @@ def _copypaste_instance(src_image, src_mask, trg_image, trg_mask, src_instance_i
         trg_mask (torch.Tensor): Augmented target mask of shape ``(H, W)``,
     """
     zero_tensor = torch.zeros(1, dtype=src_image.dtype, device=src_image.device)
-    bg_color = configs["bg_color"]
+    bg_label = configs["bg_label"]
 
     # Extract the instance from the mask and the image
-    src_instance_mask = torch.where(src_mask == src_instance_id, src_instance_id, bg_color)
+    src_instance_mask = torch.where(src_mask == src_instance_id, src_instance_id, bg_label)
     src_instance = torch.where(src_mask == src_instance_id, src_image, zero_tensor)
 
     [src_instance, src_instance_mask] = _jitter_instance(src_instance, src_instance_mask.unsqueeze(0), configs)
     src_instance_mask = src_instance_mask.squeeze(0)
 
     # Only paste the instance if it meets the pixel area requirements
-    instance_area = (src_instance_mask != configs['bg_color']).sum() / (src_instance_mask.shape[-1] *
+    instance_area = (src_instance_mask != configs['bg_label']).sum() / (src_instance_mask.shape[-1] *
                                                                         src_instance_mask.shape[-2])
     if instance_area > configs['min_instance_area'] and instance_area < configs['max_instance_area']:
         trg_image = torch.where(src_instance_mask == src_instance_id, src_instance, trg_image)
@@ -281,10 +281,10 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                           scale=scale,
                                           shear=shear,
                                           interpolation=T.functional.InterpolationMode.NEAREST,
-                                          fill=configs['bg_color'])
+                                          fill=configs['bg_label'])
 
         # Check if the jittered instance meets the instance area restrictions
-        instance_area = (jitter_mask != configs['bg_color']).sum() / (jitter_mask.shape[-1] * jitter_mask.shape[-2])
+        instance_area = (jitter_mask != configs['bg_label']).sum() / (jitter_mask.shape[-1] * jitter_mask.shape[-2])
         if instance_area > configs["min_instance_area"] and instance_area < configs["max_instance_area"]:
             jitter_img = T.functional.affine(img,
                                              angle=angle,
