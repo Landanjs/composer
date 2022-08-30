@@ -177,10 +177,9 @@ class CopyPaste(Algorithm):
         max_copied_instances=None,
         min_instance_area=0.01,
         max_instance_area=0.5,
-        padding_factor=0.5,
-        jitter_scale_min=0.01,
-        jitter_scale_max=0.99,
-        jitter_ratio=(1.0, 1.0),
+        max_translation=0.5,
+        min_scale=0.01,
+        max_scale=0.99,
         p_flip=0.9,
         bg_color=-1,
         input_key: Union[str, int, Tuple[Callable, Callable], Any] = 0,
@@ -193,9 +192,8 @@ class CopyPaste(Algorithm):
             "max_copied_instances": max_copied_instances,
             "min_instance_area": min_instance_area,
             'max_instance_area': max_instance_area,
-            "padding_factor": padding_factor,
-            "jitter_scale": (jitter_scale_min, jitter_scale_max),
-            "jitter_ratio": jitter_ratio,
+            "max_translation": max_translation,
+            "jitter_scale": (min_scale, max_scale),
             "p_flip": p_flip,
             "bg_color": bg_color
         }
@@ -271,8 +269,8 @@ def _jitter_instance(img, mask, configs, n_retry=10):
     jitter_img, jitter_mask = img, mask
     for _ in range(n_retry):
         angle, translate, scale, shear = T.RandomAffine.get_params(degrees=(0, 0),
-                                                                   translate=(configs['padding_factor'],
-                                                                              configs['padding_factor']),
+                                                                   translate=(configs['max_translation'],
+                                                                              configs['max_translation']),
                                                                    scale_ranges=configs['jitter_scale'],
                                                                    img_size=img.shape[1:],
                                                                    shears=None)
