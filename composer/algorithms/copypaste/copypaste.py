@@ -130,45 +130,25 @@ class CopyPaste(Algorithm):
     Randomly pastes objects onto an image.
 
     Args:
-        p (float, optional): Probability of applying copy-paste augmentation on a
-            pair of randomly chosen source and target samples. Default: ``0.5``
-        max_copied_instances (int | None, optional): Maximum number of instances
-            to be copied from a randomly chosen source sample into another
-            randomly chosen target sample. If this value is greater than the total
-            number of instances in the source sample, it is overridden by the
-            total number of instances in the source sample. If it is set to
-            ``None``, the total number of instances in the source sample is set to
-            be the limit. Default: ``None``.
-        min_instance_area (int, optional): Minimum area (in pixels) of an augmented
-            instance to be considered a valid instance. Augmented instances with
-            an area smaller than this threshold are removed from the sample.
-            Default:``25``.
-        max_instance_area (float, optional): Something Something. Default:``0.5``.
-        padding_factor (float, optional): The source sample is padded by this
-            ratio before applying large scale jittering to it. Default: ``0.5``.
-        jitter_scale_min (float, optional): Determines the scale used
-            in the large scale jittering of the source instance. Specifies the
-            lower and upper bounds for the random area of the crop, before
-            resizing. The scale is defined with respect to the area of the
-            original image. Default: ``(0.01, 0.99)``.
-        jitter_scale_max (float, optional): Determines the scale used
-            in the large scale jittering of the source instance. Specifies the
-            lower and upper bounds for the random area of the crop, before
-            resizing. The scale is defined with respect to the area of the
-            original image. Default: ``(0.01, 0.99)``.
-        jitter_ratio (Tuple[float, float], optional): Determines the ratio used in
-            the large scale jittering of the source instance. Lower and upper
-            bounds for the random aspect ratio of the crop, before resizing.
-            Default: ``(1.0, 1.0)``.
-        p_flip (float, optional): Probability of applying horizontal flipping
-            during large scale jittering of the source instance. Default: ``0.9``.
-        bg_color (int, optional): Class label (pixel value) of the background
-            class. Default: ``-1``.
-        input_key (str | int | Tuple[Callable, Callable] | Any, optional): A key
-            that indexes to the input from the batch. Can also be a pair of get
-            and set functions, where the getter is assumed to be first in the
-            pair.  The default is 0, which corresponds to any sequence, where the
-            first element is the input. Default: ``0``.
+        p (float, optional): Probability of applying copy-paste augmentation on each sample in a batch.
+            Default: ``0.5``.
+        max_copied_instances (int | None, optional): Maximum number of instances to be copied from a randomly chosen
+            source sample into the target sample. If this value is greater than the total number of instances in the
+            source sample, it is overridden by the total number of instances in the source sample. If it is set to
+            ``None``, the total number of instances in the source sample is set to be the limit. Default: ``None``.
+        min_instance_area (float, optional): Minimum area of the image an instance has to occupy to be pasted.
+            Default: ``0.01``.
+        max_instance_area (float, optional): Maximum area of the image an instance has to occupy to be pasated.
+            Default: ``0.5``.
+        max_translation (float, optional): Maximum random translation that can be applied to the source instance.
+            The value is represented as a proportion of the image dimensions  Default: ``0.5``.
+        min_scale (float, optional): Minimum random scale that can be applied to the source instance. Default: ``1.0``.
+        max_scale (float, optional): Maximum random scale that can be applied to the source instance. Default: ``1.0``.
+        p_flip (float, optional): Probability of horizontally flipping the source instance. Default: ``0.0``.
+        bg_label (int, optional): Background class label. Default: ``-1``.
+        input_key (str | int | Tuple[Callable, Callable] | Any, optional): A key that indexes to the input from the
+            batch. Can also be a pair of get and set functions, where the getter is assumed to be first in the pair.
+            The default is 0, which corresponds to any sequence, where the first element is the input. Default: ``0``.
         target_key (str | int | Tuple[Callable, Callable] | Any, optional): A key
             that indexes to the target from the batch. Can also be a pair of get
             and set functions, where the getter is assumed to be first in the
@@ -265,8 +245,8 @@ def _copypaste_instance(src_image, src_mask, trg_image, trg_mask, src_instance_i
     src_instance_mask = src_instance_mask.squeeze(0)
 
     # Only paste the instance if it meets the pixel area requirements
-    instance_area = (src_instance_mask != configs['bg_color']).sum() / (src_instance_mask.shape[0] *
-                                                                        src_instance_mask.shape[1])
+    instance_area = (src_instance_mask != configs['bg_color']).sum() / (src_instance_mask.shape[-1] *
+                                                                        src_instance_mask.shape[-2])
     if instance_area > configs['min_instance_area'] and instance_area < configs['max_instance_area']:
         trg_image = torch.where(src_instance_mask == src_instance_id, src_instance, trg_image)
         trg_mask = torch.where(src_instance_mask == src_instance_id, src_instance_mask, trg_mask)
@@ -306,7 +286,7 @@ def _jitter_instance(img, mask, configs, n_retry=10):
                                           fill=configs['bg_color'])
 
         # Check if the jittered instance meets the instance area restrictions
-        instance_area = (jitter_mask != configs['bg_color']).sum() / (jitter_mask.shape[0] * jitter_mask.shape[1])
+        instance_area = (jitter_mask != configs['bg_color']).sum() / (jitter_mask.shape[-1] * jitter_mask.shape[-2])
         if instance_area > configs["min_instance_area"] and instance_area < configs["max_instance_area"]:
             jitter_img = T.functional.affine(img,
                                              angle=angle,
