@@ -82,7 +82,6 @@ def copypaste_batch(images, masks, configs):
     # Only samples with instances can be source images
     src_indices = [i for i in range(batch_size) if (torch.unique(masks[i]) != configs['bg_label']).sum()]
     src_indices = np.array(src_indices)
-
     # Exit if there are no samples with instances
     if len(src_indices) == 0:
         return images, masks
@@ -93,11 +92,9 @@ def copypaste_batch(images, masks, configs):
         target_img = images[batch_idx]
         target_mask = masks[batch_idx]
 
-        # Array of available source samples based on the current batch
-        current_src_indices = src_indices[src_indices != batch_idx]
-        if sample < configs["p"] and len(current_src_indices) > 0:
+        if sample < configs["p"]:
             # Sample the source image to use, excluding the current batch
-            src_idx = np.random.choice(current_src_indices)
+            src_idx = np.random.choice(src_indices)
 
             # Count the number of instances in the mask, ignoring the background class
             instance_ids = torch.unique(masks[src_idx])
