@@ -60,5 +60,5 @@ class WeightStandardization(Algorithm):
 
     def apply(self, event: Event, state: State, logger: Logger):
         ws_count, gn_count = apply_weight_standardization(state.model)
-        logger.data_fit({'WeightStandardization/num_weights_standardized': ws_count})
-        logger.data_fit({'WeightStandardization/num_group_norms': gn_count})
+        logger.log_hyperparameters({'WeightStandardization/num_weights_standardized': ws_count})
+        logger.log_hyperparameters({'WeightStandardization/num_group_norms': gn_count})
