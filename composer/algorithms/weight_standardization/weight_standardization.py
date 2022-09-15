@@ -7,6 +7,7 @@ from torch import nn
 
 from composer.core import Algorithm, Event, State
 from composer.loggers import Logger
+from composer.utils import module_surgery
 
 __all__ = ['apply_weight_standardization', 'WeightStandardization']
 
@@ -23,14 +24,30 @@ class WeightStandardizer(nn.Module):
         return _standardize_weights(W)
 
 
+def batch_to_group_norm(module: torch.nn.BatchNorm2d):
+    group_norm = torch.nn.GroupNorm(num_groups=8,
+                                    num_channels=module.num_features,
+                                    eps=module.eps,
+                                    affine=module.affine)
+
+    if module.affine:
+        with torch.no_grad():
+            group_norm.weight.copy_(module.weight)
+            group_norm.bias.copy_(module.bias)
+
+    return group_norm
+
+
 def apply_weight_standardization(model: torch.nn.Module):
-    count = 0
+    ws_count = 0
     for module in model.modules():
         if (isinstance(module, nn.Conv1d) or isinstance(module, nn.Conv2d) or isinstance(module, nn.Conv3d)):
-
             parametrize.register_parametrization(module, 'weight', WeightStandardizer())
-            count += 1
-    return count
+            ws_count += 1
+    transforms = {torch.nn.BatchNorm2d: batch_to_group_norm}
+    module_surgery.replace_module_classes(model, policies=transforms)
+    gn_count = module_surgery.count_module_instance(model, torch.nn.GroupNorm)
+    return ws_count, gn_count
 
 
 class WeightStandardization(Algorithm):
@@ -42,5 +59,6 @@ class WeightStandardization(Algorithm):
         return (event == Event.INIT)
 
     def apply(self, event: Event, state: State, logger: Logger):
-        count = apply_weight_standardization(state.model)
-        logger.data_fit({'WeightStandardization/num_weights_standardized': count})
+        ws_count, gn_count = apply_weight_standardization(state.model)
+        logger.data_fit({'WeightStandardization/num_weights_standardized': ws_count})
+        logger.data_fit({'WeightStandardization/num_group_norms': gn_count})
