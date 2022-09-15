@@ -4,6 +4,8 @@
 import torch
 import torch.nn.utils.parametrize as parametrize
 from torch import nn
+from torch.optim import Optimizer
+from typing import Optional, Sequence, Union
 
 from composer.core import Algorithm, Event, State
 from composer.loggers import Logger
@@ -38,14 +40,15 @@ def batch_to_group_norm(module: torch.nn.BatchNorm2d, module_index: int):
     return group_norm
 
 
-def apply_weight_standardization(model: torch.nn.Module):
+def apply_weight_standardization(model: torch.nn.Module,
+                                 optimizers: Optional[Union[Optimizer, Sequence[Optimizer]]] = None):
     ws_count = 0
     for module in model.modules():
         if (isinstance(module, nn.Conv1d) or isinstance(module, nn.Conv2d) or isinstance(module, nn.Conv3d)):
             parametrize.register_parametrization(module, 'weight', WeightStandardizer())
             ws_count += 1
     transforms = {torch.nn.BatchNorm2d: batch_to_group_norm}
-    module_surgery.replace_module_classes(model, policies=transforms)
+    module_surgery.replace_module_classes(model, optimizers=optimizers, policies=transforms)
     gn_count = module_surgery.count_module_instances(model, torch.nn.GroupNorm)
     return ws_count, gn_count
 
@@ -59,6 +62,6 @@ class WeightStandardization(Algorithm):
         return (event == Event.INIT)
 
     def apply(self, event: Event, state: State, logger: Logger):
-        ws_count, gn_count = apply_weight_standardization(state.model)
+        ws_count, gn_count = apply_weight_standardization(state.model, state.optimizers)
         logger.log_hyperparameters({'WeightStandardization/num_weights_standardized': ws_count})
         logger.log_hyperparameters({'WeightStandardization/num_group_norms': gn_count})
