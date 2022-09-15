@@ -27,7 +27,7 @@ class WeightStandardizer(nn.Module):
 
 
 def batch_to_group_norm(module: torch.nn.BatchNorm2d, module_index: int):
-    group_norm = torch.nn.GroupNorm(num_groups=8,
+    group_norm = torch.nn.GroupNorm(num_groups=32,
                                     num_channels=module.num_features,
                                     eps=module.eps,
                                     affine=module.affine)
