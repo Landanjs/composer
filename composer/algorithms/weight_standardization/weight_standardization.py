@@ -46,7 +46,7 @@ def apply_weight_standardization(model: torch.nn.Module):
             ws_count += 1
     transforms = {torch.nn.BatchNorm2d: batch_to_group_norm}
     module_surgery.replace_module_classes(model, policies=transforms)
-    gn_count = module_surgery.count_module_instance(model, torch.nn.GroupNorm)
+    gn_count = module_surgery.count_module_instances(model, torch.nn.GroupNorm)
     return ws_count, gn_count
 
 
