@@ -7,20 +7,20 @@ from __future__ import annotations
 
 import logging
 import os
-import pathlib
 import tempfile
 import textwrap
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Union
 
 from composer.core import Event, State
 from composer.core.callback import Callback
-from composer.core.time import Time, Timestamp, TimeUnit
+from composer.core.time import Time, TimeUnit
 from composer.loggers import Logger
 from composer.loggers.logger import LogLevel
-from composer.utils import checkpoint, dist, is_model_deepspeed
+from composer.utils import checkpoint, dist, is_model_deepspeed, reproducibility
+from composer.utils.checkpoint import PartialFilePath
 from composer.utils.file_helpers import (FORMAT_NAME_WITH_DIST_AND_TIME_TABLE, FORMAT_NAME_WITH_DIST_TABLE,
                                          create_symlink_file, ensure_folder_has_no_conflicting_files,
-                                         format_name_with_dist, format_name_with_dist_and_time, is_tar)
+                                         format_name_with_dist)
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def checkpoint_periodically(interval: Union[str, int, Time]) -> Callable[[State,
             and at the end of training.
 
     Returns:
-        Callable[[State, Event], bool]: A function that can be passed as the ``save_interval``
+        Callable[[State, Event], bool]: A function that can be passed as the ``checkpoint_save_interval``
             argument into the :class:`.CheckpointSaver`.
     """
     if isinstance(interval, str):
@@ -57,7 +57,7 @@ def checkpoint_periodically(interval: Union[str, int, Time]) -> Callable[[State,
 
     last_checkpoint_batch: Optional[Time] = None
 
-    def save_interval(state: State, event: Event):
+    def checkpoint_save_interval(state: State, event: Event):
         nonlocal last_checkpoint_batch
         elapsed_duration = state.get_elapsed_duration()
         assert elapsed_duration is not None, 'elapsed_duration is set on the BATCH_CHECKPOINT and EPOCH_CHECKPOINT'
@@ -83,7 +83,7 @@ def checkpoint_periodically(interval: Union[str, int, Time]) -> Callable[[State,
 
         return False
 
-    return save_interval
+    return checkpoint_save_interval
 
 
 class CheckpointSaver(Callback):  # noqa: D101
@@ -91,7 +91,7 @@ class CheckpointSaver(Callback):  # noqa: D101
 
     .. note::
 
-        If the ``folder`` argument is specified when constructing the :class:`.Trainer`, then the :class:`.CheckpointSaver`
+        If the ``checkpoint_save_path`` argument is specified when constructing the :class:`.Trainer`, then the :class:`.CheckpointSaver`
         callback need not be constructed manually. However, for advanced checkpointing use cases
         (such as saving a weights-only checkpoint at one interval and the full training state
         at another interval), instance(s) of this :class:`.CheckpointSaver` callback can be specified in the
@@ -107,16 +107,16 @@ class CheckpointSaver(Callback):  # noqa: D101
 
         >>> trainer = Trainer(..., callbacks=[
         ...     CheckpointSaver(
-        ...         folder='{{run_name}}/checkpoints',
-        ...         filename="ep{{epoch}}-ba{{batch}}-rank{{rank}}",
-        ...         latest_filename="latest-rank{{rank}}",
-        ...         save_interval="1ep",
+        ...         checkpoint_save_path='{{run_name}}/checkpoints',
+        ...         checkpoint_filename="ep{{epoch}}-ba{{batch}}-rank{{rank}}",
+        ...         latest_checkpoint_filename="latest-rank{{rank}}",
+        ...         checkpoint_save_interval="1ep",
         ...         weights_only=False,
         ...     )
         ... ])
 
     Args:
-        folder (str, optional): Format string for the folder where checkpoints will be saved.
+        checkpoint_save_path (str, optional): Format string for the checkpoint_save_path where checkpoints will be saved.
             Default: ``'{{run_name}}/checkpoints'``.
 
             The following format variables are available:
@@ -128,10 +128,10 @@ class CheckpointSaver(Callback):  # noqa: D101
                 When training with multiple devices (i.e. GPUs), ensure that ``'{{rank}}'`` appears in the format.
                 Otherwise, multiple processes may attempt to write to the same file.
 
-        filename (str, optional): A format string describing how to name checkpoints.
+        checkpoint_filename (str, optional): A format string describing how to name checkpoints.
             Default: ``'ep{{epoch}}-ba{{batch}}-rank{{rank}}.pt'``.
 
-            Checkpoints will be saved approximately to ``{{folder}}/{{filename.format(...)}}``.
+            Checkpoints will be saved approximately to ``{{checkpoint_save_path}}/{{checkpoint_filename.format(...)}}``.
 
             The following format variables are available:
 
@@ -144,7 +144,7 @@ class CheckpointSaver(Callback):  # noqa: D101
 
                 *   When using DeepSpeed, each rank will save a checkpoint file in tarball format. DeepSpeed
                     requires tarball format, as it saves model and optimizer states in separate files.
-                    Ensure that ``'{{rank}}'`` appears within the ``filename``. Otherwise, multiple ranks
+                    Ensure that ``'{{rank}}'`` appears within the ``checkpoint_filename``. Otherwise, multiple ranks
                     may attempt to write to the same file(s), leading to corrupted checkpoints. If no tarball file
                     extension is specified, ``'.tar'`` will be used.
 
@@ -160,7 +160,7 @@ class CheckpointSaver(Callback):  # noqa: D101
             Consider the following scenario where:
 
             *   The :attr:`~.State.run_name` is ``'awesome-training-run'``
-            *   The default ``folder='{{run_name}}/checkpoints'`` is used.
+            *   The default ``checkpoint_save_path='{{run_name}}/checkpoints'`` is used.
             *   The default ``name='ep{{epoch}}-ba{{batch}}-rank{{rank}}'`` is used.
             *   The current epoch count is ``1``.
             *   The current batch count is ``42``.
@@ -183,15 +183,15 @@ class CheckpointSaver(Callback):  # noqa: D101
 
             .. seealso:: :doc:`Artifact Logging</trainer/artifact_logging>` for notes for file artifact logging.
 
-            The same format variables for ``filename`` are available.
+            The same format variables for ``checkpoint_filename`` are available.
 
             Leading slashes (``'/'``) will be stripped.
 
             To disable logging trace files as file artifacts, set this parameter to ``None``.
-        latest_filename (str, optional): A format string for a symlink which points to the last saved checkpoint.
+        latest_checkpoint_filename (str, optional): A format string for a symlink which points to the last saved checkpoint.
             Default: ``'latest-rank{{rank}}.pt'``.
 
-            Symlinks will be created approximately at ``{{folder}}/{{latest_filename.format(...)}}``.
+            Symlinks will be created approximately at ``{{checkpoint_save_path}}/{{latest_checkpoint_filename.format(...)}}``.
 
             The same format variables as for ``name`` are available.
 
@@ -200,9 +200,9 @@ class CheckpointSaver(Callback):  # noqa: D101
             Consider the following scenario, where:
 
             *   The :attr:`~.State.run_name` is 'awesome-training-run'
-            *   The default ``folder='{{run_name}}/checkpoints'`` is used.
+            *   The default ``checkpoint_save_path='{{run_name}}/checkpoints'`` is used.
             *   The default ``name='ep{{epoch}}-ba{{batch}}-rank{{rank}}'`` is used.
-            *   The default ``latest_filename='latest-rank{{rank}}'`` is used.
+            *   The default ``latest_checkpoint_filename='latest-rank{{rank}}'`` is used.
             *   The current epoch count is ``1``.
             *   The current batch count is ``42``.
 
@@ -228,21 +228,21 @@ class CheckpointSaver(Callback):  # noqa: D101
             Default: ``'{{run_name}}/checkpoints/latest-rank{{rank}}"``.
 
             Whenever a new checkpoint is saved, a symlink artifact is created or updated to point to the latest checkpoint's ``artifact_name``.
-            The artifact name will be determined by this format string. This parameter has no effect if ``latest_filename`` or ``artifact_name`` is ``None``.
+            The artifact name will be determined by this format string. This parameter has no effect if ``latest_checkpoint_filename`` or ``artifact_name`` is ``None``.
 
             .. seealso:: :doc:`Artifact Logging</trainer/artifact_logging>` for notes for file artifact logging.
 
-            The same format variables for ``filename`` are available.
+            The same format variables for ``checkpoint_filename`` are available.
 
             Leading slashes (``'/'``) will be stripped.
 
             To disable symlinks in logger, set this parameter to ``None``.
 
         overwrite (bool, optional): Whether existing checkpoints should be overridden.
-            If ``False`` (the default), then the ``folder`` must not exist or must not contain checkpoints which may conflict
+            If ``False`` (the default), then the ``checkpoint_save_path`` must not exist or must not contain checkpoints which may conflict
             with the current run. Default: ``False``.
 
-        save_interval (Time | str | int | (State, Event) -> bool): A :class:`.Time`, time-string, integer (in epochs),
+        checkpoint_save_interval (Time | str | int | (State, Event) -> bool): A :class:`.Time`, time-string, integer (in epochs),
             or a function that takes (state, event) and returns a boolean whether a checkpoint should be saved.
 
             If an integer, checkpoints will be saved every n epochs.
@@ -289,131 +289,142 @@ class CheckpointSaver(Callback):  # noqa: D101
 
     def __init__(
         self,
-        folder: str = '{run_name}/checkpoints',
-        filename: str = 'ep{epoch}-ba{batch}-rank{rank}.pt',
+        checkpoint_save_path: str = '{run_name}/checkpoints',
+        checkpoint_filename: str = 'ep{epoch}-ba{batch}-rank{rank}.pt',
         artifact_name: Optional[str] = '{run_name}/checkpoints/ep{epoch}-ba{batch}-rank{rank}',
-        latest_filename: Optional[str] = 'latest-rank{rank}.pt',
+        latest_checkpoint_filename: Optional[str] = 'latest-rank{rank}.pt',
         latest_artifact_name: Optional[str] = '{run_name}/checkpoints/latest-rank{rank}',
-        save_interval: Union[Time, str, int, Callable[[State, Event], bool]] = '1ep',
+        checkpoint_save_interval: Union[Time, str, int, Callable[[State, Event], bool]] = '1ep',
         *,
         overwrite: bool = False,
         num_checkpoints_to_keep: int = -1,
         weights_only: bool = False,
     ):
-        if not callable(save_interval):
-            save_interval = checkpoint_periodically(save_interval)
+        if not callable(checkpoint_save_interval):
+            checkpoint_save_interval = checkpoint_periodically(checkpoint_save_interval)
+        self.checkpoint_save_interval = checkpoint_save_interval
 
-        self.folder = folder
-        self.filename = filename
-        self.artifact_name = artifact_name
-        self.latest_filename = latest_filename
-        self.latest_artifact_name = latest_artifact_name
+        self.checkpoint_save_path = checkpoint_save_path
+
+        self.checkpoint_filename = PartialFilePath(checkpoint_filename.lstrip('/'), checkpoint_save_path)
+        self.latest_checkpoint_filename = PartialFilePath(latest_checkpoint_filename.lstrip('/'),
+                                                          checkpoint_save_path) if latest_checkpoint_filename else None
+
+        self.artifact_name = PartialFilePath(artifact_name) if artifact_name else None
+        self.latest_artifact_name = PartialFilePath(latest_artifact_name) if latest_artifact_name else None
+
         self.overwrite = overwrite
-
-        self.save_interval = save_interval
-        self.saved_checkpoints: List[Tuple[Timestamp, List[pathlib.Path]]] = []
+        self.saved_checkpoints: List[str] = []
         self.num_checkpoints_to_keep = num_checkpoints_to_keep
         self.weights_only = weights_only
 
     def init(self, state: State, logger: Logger) -> None:
-        del logger  # unused
-        folder = format_name_with_dist(self.folder, state.run_name)
-        os.makedirs(folder, exist_ok=True)
+        checkpoint_save_path = format_name_with_dist(self.checkpoint_save_path, state.run_name)
+        os.makedirs(checkpoint_save_path, exist_ok=True)
 
     def fit_start(self, state: State, logger: Logger) -> None:
-        del logger  # unused
-        # Verify safety with self.overwrite. Note that this has to be done at fit_start as opposed to init since it requires state.timestamp
-        # from any checkpoints which are loaded, and checkpoint loading happens after Event.INIT.
         if not self.overwrite:
-            folder = format_name_with_dist(self.folder, state.run_name)
-            ensure_folder_has_no_conflicting_files(folder, self.filename, state.timestamp)
-        # Ensure no rank proceeds (and potentially attempts to write to the folder), until all ranks have validated that the folder is safe.
-        dist.barrier()
-        if is_model_deepspeed(state.model):
-            if self.weights_only:
-                NotImplementedError(
-                    ('Saving checkpoints with `weights_only=True` is not currently supported when using DeepSpeed. '
-                     'See https://github.com/mosaicml/composer/issues/685.'))
+            # checks that checkpoint_save_path contains no files with a timestamp after the current timestamp,
+            # which has potential for future conflicts.
+            checkpoint_save_path = format_name_with_dist(self.checkpoint_save_path, state.run_name)
+            ensure_folder_has_no_conflicting_files(checkpoint_save_path, self.checkpoint_filename.filename,
+                                                   state.timestamp)
+
+        dist.barrier()  # holds all ranks until checkpoint_save_path check is done
+
+        if is_model_deepspeed(state.model) and self.weights_only:
+            raise NotImplementedError('weights_only=True is not supported when using DeepSpeed.')
 
     def batch_checkpoint(self, state: State, logger: Logger):
-        if self.save_interval(state, Event.BATCH_CHECKPOINT):
-            # If training is finished, log at the FIT loglevel
-            elapsed_duration = state.get_elapsed_duration()
-            assert elapsed_duration is not None, 'elapsed_duration is set on Event.BATCH_CHECKPOINT'
-            log_level = LogLevel.BATCH if elapsed_duration < 1.0 else LogLevel.FIT
-            self._save_checkpoint(state, logger, log_level)
+        if self.checkpoint_save_interval(state, Event.BATCH_CHECKPOINT):
+            self._save_checkpoint(
+                state,
+                logger,
+                self.get_log_level(state, default=LogLevel.BATCH),
+            )
 
     def epoch_checkpoint(self, state: State, logger: Logger):
-        if self.save_interval(state, Event.EPOCH_CHECKPOINT):
-            elapsed_duration = state.get_elapsed_duration()
-            assert elapsed_duration is not None, 'elapsed_duration is set on Event.BATCH_CHECKPOINT'
-            log_level = LogLevel.EPOCH if elapsed_duration < 1.0 else LogLevel.FIT
-            self._save_checkpoint(state, logger, log_level)
+        if self.checkpoint_save_interval(state, Event.EPOCH_CHECKPOINT):
+            self._save_checkpoint(
+                state,
+                logger,
+                self.get_log_level(state, default=LogLevel.EPOCH),
+            )
+
+    def get_log_level(self, state: State, default: LogLevel) -> LogLevel:
+        elapsed_duration = state.get_elapsed_duration()
+        assert elapsed_duration is not None, 'elapsed_duration is set on Event.BATCH_CHECKPOINT'
+        return default if elapsed_duration < 1.0 else LogLevel.FIT
+
+    def get_state_dict(self, state):
+        return {
+            'state': state.state_dict(),
+            'rng': reproducibility.get_rng_state(),
+        }
 
     def _save_checkpoint(self, state: State, logger: Logger, log_level: LogLevel):
-        checkpoint_filepath = os.path.join(format_name_with_dist(self.folder, state.run_name), self.filename)
-        checkpoint_filepaths = checkpoint.save_checkpoint(state, checkpoint_filepath, weights_only=self.weights_only)
+        is_deepspeed = is_model_deepspeed(state.model)
 
-        if dist.get_global_rank() < len(checkpoint_filepaths):
-            # Log the checkpoint as an artifact
-            checkpoint_filepath = checkpoint_filepaths[dist.get_global_rank()]
-            if self.artifact_name is not None:
-                artifact_name = format_name_with_dist_and_time(self.artifact_name, state.run_name,
-                                                               state.timestamp).lstrip('/')
-                if is_model_deepspeed(state.model) and not is_tar(artifact_name):
-                    # Deepspeed requires tarballs; appending `.tar`
-                    artifact_name += '.tar'
-                logger.file_artifact(log_level=log_level,
-                                     artifact_name=artifact_name,
-                                     file_path=checkpoint_filepath,
-                                     overwrite=self.overwrite)
+        if is_deepspeed and '{rank}' not in self.checkpoint_filename.filename:
+            raise ValueError(
+                f'Save checkpoint_filename {self.checkpoint_filename.filename} must have {{rank}} for deepspeed.')
 
-            if self.latest_filename is not None:
-                formatted_folder_path = format_name_with_dist(self.folder, state.run_name)
-                symlink_name = os.path.join(
-                    formatted_folder_path,
-                    format_name_with_dist_and_time(
-                        self.latest_filename,
-                        state.run_name,
-                        state.timestamp,
-                    ).lstrip('/'),
-                )
-                if is_model_deepspeed(state.model) and not is_tar(symlink_name):
-                    # Deepspeed requires tarballs; appending `.tar`
-                    symlink_name += '.tar'
-                symlink_dirname = os.path.dirname(symlink_name)
-                if symlink_dirname:
-                    os.makedirs(symlink_dirname, exist_ok=True)
-                try:
-                    os.remove(symlink_name)
-                except FileNotFoundError:
-                    pass
-                relative_checkpoint_path = os.path.relpath(checkpoint_filepath, formatted_folder_path)
-                os.symlink(relative_checkpoint_path, symlink_name)
-                if self.artifact_name is not None and self.latest_artifact_name is not None:
-                    symlink_artifact_name = format_name_with_dist_and_time(self.latest_artifact_name, state.run_name,
-                                                                           state.timestamp).lstrip('/') + '.symlink'
-                    artifact_name = format_name_with_dist_and_time(self.artifact_name, state.run_name,
-                                                                   state.timestamp).lstrip('/')
-                    # Always overwrite for symlinks since we use the same filename for latest
-                    with tempfile.TemporaryDirectory() as tmpdir:
-                        symlink_filename = os.path.join(tmpdir, 'latest.symlink')
-                        create_symlink_file(artifact_name, symlink_filename)
-                        logger.file_artifact(
-                            log_level=log_level,
-                            artifact_name=symlink_artifact_name,
-                            file_path=symlink_filename,
-                            overwrite=True,
-                        )
+        # save the checkpoint to the filename
+        checkpoint_filename = self.checkpoint_filename.format(state, is_deepspeed)
 
-        timestamp = state.timestamp
+        saved_path = checkpoint.save_checkpoint(
+            state=state,
+            filename=checkpoint_filename,
+            weights_only=self.weights_only,
+        )
 
-        self.saved_checkpoints.append((timestamp, checkpoint_filepaths))
+        if not saved_path:  # not all ranks save
+            return
+
+        if self.latest_checkpoint_filename is not None:
+            symlink = self.latest_checkpoint_filename.format(state, is_deepspeed)
+            os.makedirs(os.path.dirname(symlink), exist_ok=True)
+            try:
+                os.remove(symlink)
+            except FileNotFoundError:
+                pass
+            os.symlink(os.path.relpath(checkpoint_filename, os.path.dirname(symlink)), symlink)
+
+        # if artifact name provided, upload the checkpoint
+        if self.artifact_name is not None:
+            artifact_name = self.artifact_name.format(
+                state,
+                is_deepspeed,
+            ).lstrip('/')
+
+            logger.file_artifact(log_level=log_level,
+                                 artifact_name=artifact_name,
+                                 file_path=checkpoint_filename,
+                                 overwrite=self.overwrite)
+
+            if self.latest_artifact_name is not None:
+                symlink_name = self.latest_artifact_name.format(
+                    state,
+                    is_deepspeed,
+                ).lstrip('/') + '.symlink'
+
+                # create and upload a symlink file
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    symlink_filename = os.path.join(tmpdir, 'latest.symlink')
+                    create_symlink_file(artifact_name, symlink_filename)
+                    logger.file_artifact(
+                        log_level=log_level,
+                        artifact_name=symlink_name,
+                        file_path=symlink_filename,
+                        overwrite=True,
+                    )
+
+        self.saved_checkpoints.append(checkpoint_filename)
+
         if self.num_checkpoints_to_keep >= 0:
-            while len(self.saved_checkpoints) > self.num_checkpoints_to_keep:
+            self._rotate_checkpoints()
 
-                timestamp, checkpoint_filepaths = self.saved_checkpoints[0]
-                if dist.get_global_rank() < len(checkpoint_filepaths):
-                    # Remove this rank's checkpoint
-                    os.remove(checkpoint_filepaths[dist.get_global_rank()])
-                del self.saved_checkpoints[0]
+    def _rotate_checkpoints(self):
+        while len(self.saved_checkpoints) > self.num_checkpoints_to_keep:
+            checkpoint = self.saved_checkpoints.pop(0)
+            os.remove(checkpoint)
