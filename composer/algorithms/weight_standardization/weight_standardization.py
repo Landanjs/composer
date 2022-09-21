@@ -8,6 +8,7 @@ from torch.fx import symbolic_trace
 
 from composer.core import Algorithm, Event, State
 from composer.loggers import Logger
+from composer.utils import module_surgery
 
 __all__ = ['apply_weight_standardization', 'WeightStandardization']
 
@@ -24,7 +25,18 @@ class WeightStandardizer(nn.Module):
         return _standardize_weights(W)
 
 
-def apply_weight_standardization(model: torch.nn.Module, n_last_layers_ignore: bool = False):
+def batch_to_layer_norm(module: torch.nn.BatchNorm2d, module_index: int):
+    layer_norm = torch.nn.LayerNorm(module.num_features, eps=module.eps, elementwise_affine=module.affine)
+
+    if module.affine:
+        with torch.no_grad():
+            layer_norm.weight.copy_(module.weight)
+            layer_norm.bias.copy_(module.bias)
+
+    return layer_norm
+
+
+def apply_weight_standardization(model: torch.nn.Module, n_last_layers_ignore: bool = False, optimizers=None):
     count = 0
     model_trace = symbolic_trace(model)
     for module in model_trace.modules():
@@ -41,7 +53,10 @@ def apply_weight_standardization(model: torch.nn.Module, n_last_layers_ignore: b
             parametrize.remove_parametrizations(module, 'weight', leave_parametrized=False)
             count -= 1
 
-    return count
+    transforms = {torch.nn.BatchNorm2d: batch_to_layer_norm}
+    module_surgery.replace_module_classes(model, optimizers=optimizers, policies=transforms)
+    gn_count = module_surgery.count_module_instances(model, torch.nn.GroupNorm)
+    return count, gn_count
 
 
 class WeightStandardization(Algorithm):
@@ -61,5 +76,8 @@ class WeightStandardization(Algorithm):
         return (event == Event.INIT)
 
     def apply(self, event: Event, state: State, logger: Logger):
-        count = apply_weight_standardization(state.model, n_last_layers_ignore=self.n_last_layers_ignore)
+        count, gn_count = apply_weight_standardization(state.model,
+                                                       n_last_layers_ignore=self.n_last_layers_ignore,
+                                                       optimizers=state.optimizers)
         logger.data_fit({'WeightStandardization/num_weights_standardized': count})
+        logger.data_fit({'WeightStandardization/num_layer_norms': gn_count})
