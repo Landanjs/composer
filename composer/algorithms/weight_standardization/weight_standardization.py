@@ -25,8 +25,30 @@ class WeightStandardizer(nn.Module):
         return _standardize_weights(W)
 
 
+class LayerNorm(nn.Module):
+    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
+    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
+    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
+    with shape (batch_size, channels, height, width).
+    """
+
+    def __init__(self, normalized_shape, eps=1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(normalized_shape))
+        self.bias = nn.Parameter(torch.zeros(normalized_shape))
+        self.eps = eps
+        self.normalized_shape = (normalized_shape,)
+
+    def forward(self, x):
+        u = x.mean(1, keepdim=True)
+        s = (x - u).pow(2).mean(1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.eps)
+        x = self.weight[:, None, None] * x + self.bias[:, None, None]
+        return x
+
+
 def batch_to_layer_norm(module: torch.nn.BatchNorm2d, module_index: int):
-    layer_norm = torch.nn.LayerNorm(module.num_features, eps=module.eps, elementwise_affine=module.affine)
+    layer_norm = LayerNorm(module.num_features, eps=module.eps)
 
     if module.affine:
         with torch.no_grad():
@@ -40,7 +62,7 @@ def apply_weight_standardization(model: torch.nn.Module, n_last_layers_ignore: b
     count = 0
     model_trace = symbolic_trace(model)
     for module in model_trace.modules():
-        if isinstance(module, (nn.Conv1d, nn.Conv2d, nn.Conv3d)) and module.groups == 1:
+        if isinstance(module, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
             parametrize.register_parametrization(module, 'weight', WeightStandardizer())
             count += 1
 
@@ -49,7 +71,7 @@ def apply_weight_standardization(model: torch.nn.Module, n_last_layers_ignore: b
     for module in list(model_trace.modules())[::-1]:
         if target_ws_layers == count:
             break
-        if isinstance(module, (nn.Conv1d, nn.Conv2d, nn.Conv3d)) and module.groups == 1:
+        if isinstance(module, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
             parametrize.remove_parametrizations(module, 'weight', leave_parametrized=False)
             count -= 1
 
