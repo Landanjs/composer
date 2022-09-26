@@ -22,7 +22,7 @@ def _standardize_weights(W: torch.Tensor):
     """Function to standardize the input weight ``W``"""
     reduce_dims = list(range(1, W.dim()))
     W_var, W_mean = torch.var_mean(W, dim=reduce_dims, keepdim=True, unbiased=False)
-    fan_in = W.shape[1:].numel()
+    fan_in = torch.tensor(W.shape[1:].numel(), dtype=W.dtype, device=W.device)
     return (W - W_mean) / (torch.sqrt(fan_in) * torch.sqrt(W_var + 1e-10))
 
 
