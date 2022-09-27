@@ -21,7 +21,7 @@ __all__ = ['apply_weight_standardization', 'WeightStandardization']
 def _standardize_weights(W: torch.Tensor):
     """Function to standardize the input weight ``W``"""
     reduce_dims = list(range(1, W.dim()))
-    W_var, W_mean = torch.var_mean(W, dim=reduce_dims, keepdim=True, unbiased=False)
+    W_var, W_mean = torch.var_mean(W, dim=reduce_dims, keepdim=True, unbiased=True)
     return (W - W_mean) / (torch.sqrt(W_var + 1e-10))
 
 
