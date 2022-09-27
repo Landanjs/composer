@@ -24,7 +24,7 @@ def _standardize_weights(W: torch.Tensor):
     W_var, W_mean = torch.var_mean(W, dim=reduce_dims, keepdim=True, unbiased=False)
     with torch.no_grad():
         fan_in = torch.tensor(W.shape[1:].numel(), dtype=W.dtype, device=W.device)
-    return (W - W_mean) / (torch.sqrt(fan_in) * torch.sqrt(W_var + 1e-10))
+    return (W - W_mean) / torch.sqrt(fan_in * W_var + 1e-10)
 
 
 class WeightStandardizer(nn.Module):
